@@ -1,0 +1,3 @@
+[submodule "noise2vst"]
+	path = noise2vst
+	url = https://github.com/sherbret/noise2vst
