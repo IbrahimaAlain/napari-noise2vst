@@ -1,0 +1,30 @@
+name: napari-noise2vst
+display_name: Noise2VST
+# use 'hidden' to remove plugin from napari hub search results
+visibility: public
+# see https://napari.org/stable/plugins/technical_references/manifest.html#fields for valid categories
+# categories: []
+contributions:
+  commands:
+    - id: napari-noise2vst.make_container_widget
+      python_name: napari_noise2vst:ImageThreshold
+      title: Make threshold Container widget
+    - id: napari-noise2vst.make_magic_widget
+      python_name: napari_noise2vst:threshold_magic_widget
+      title: Make threshold magic widget
+    - id: napari-noise2vst.make_function_widget
+      python_name: napari_noise2vst:threshold_autogenerate_widget
+      title: Make threshold function widget
+    - id: napari-noise2vst.make_qwidget
+      python_name: napari_noise2vst:ExampleQWidget
+      title: Make example QWidget
+  widgets:
+    - command: napari-noise2vst.make_container_widget
+      display_name: Container Threshold
+    - command: napari-noise2vst.make_magic_widget
+      display_name: Magic Threshold
+    - command: napari-noise2vst.make_function_widget
+      autogenerate: true
+      display_name: Autogenerate Threshold
+    - command: napari-noise2vst.make_qwidget
+      display_name: Example QWidget
