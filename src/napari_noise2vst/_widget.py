@@ -28,101 +28,112 @@ References:
 
 Replace code below according to your needs.
 """
-from typing import TYPE_CHECKING
+################################################################
+import sys
+import os
+import torch
+import numpy as np
 
-from magicgui import magic_factory
-from magicgui.widgets import CheckBox, Container, create_widget
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget
+from magicgui.widgets import Container, create_widget, FileEdit
 from skimage.util import img_as_float
 
+repo_path = os.path.join(os.path.dirname(__file__), "noise2vst")
+if repo_path not in sys.path:
+    sys.path.insert(0, repo_path)
+
+from noise2vst.model.noise2vst import Noise2VST
+
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import napari
+################################################################
 
-
-# Uses the `autogenerate: true` flag in the plugin manifest
-# to indicate it should be wrapped as a magicgui to autogenerate
-# a widget.
-def threshold_autogenerate_widget(
-    img: "napari.types.ImageData",
-    threshold: "float",
-) -> "napari.types.LabelsData":
-    return img_as_float(img) > threshold
-
-
-# the magic_factory decorator lets us customize aspects of our widget
-# we specify a widget type for the threshold parameter
-# and use auto_call=True so the function is called whenever
-# the value of a parameter changes
-@magic_factory(
-    threshold={"widget_type": "FloatSlider", "max": 1}, auto_call=True
-)
-def threshold_magic_widget(
-    img_layer: "napari.layers.Image", threshold: "float"
-) -> "napari.types.LabelsData":
-    return img_as_float(img_layer.data) > threshold
-
-
-# if we want even more control over our widget, we can use
-# magicgui `Container`
-class ImageThreshold(Container):
-    def __init__(self, viewer: "napari.viewer.Viewer"):
-        super().__init__()
-        self._viewer = viewer
-        # use create_widget to generate widgets from type annotations
-        self._image_layer_combo = create_widget(
-            label="Image", annotation="napari.layers.Image"
-        )
-        self._threshold_slider = create_widget(
-            label="Threshold", annotation=float, widget_type="FloatSlider"
-        )
-        self._threshold_slider.min = 0
-        self._threshold_slider.max = 1
-        # use magicgui widgets directly
-        self._invert_checkbox = CheckBox(text="Keep pixels below threshold")
-
-        # connect your own callbacks
-        self._threshold_slider.changed.connect(self._threshold_im)
-        self._invert_checkbox.changed.connect(self._threshold_im)
-
-        # append into/extend the container with your widgets
-        self.extend(
-            [
-                self._image_layer_combo,
-                self._threshold_slider,
-                self._invert_checkbox,
-            ]
-        )
-
-    def _threshold_im(self):
-        image_layer = self._image_layer_combo.value
-        if image_layer is None:
-            return
-
-        image = img_as_float(image_layer.data)
-        name = image_layer.name + "_thresholded"
-        threshold = self._threshold_slider.value
-        if self._invert_checkbox.value:
-            thresholded = image < threshold
-        else:
-            thresholded = image > threshold
-        if name in self._viewer.layers:
-            self._viewer.layers[name].data = thresholded
-        else:
-            self._viewer.add_labels(thresholded, name=name)
-
-
-class ExampleQWidget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # use a type annotation of 'napari.viewer.Viewer' for any parameter
+class Noise2VSTWidget(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
         super().__init__()
         self.viewer = viewer
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = Noise2VST().to(self.device)
 
-        btn = QPushButton("Click me!")
-        btn.clicked.connect(self._on_click)
+        # Widgets
+        self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
+        self.spline_weights_path = FileEdit(label="Load weights (.pth)", mode="r", filter="*.pth")
+        self.save_weights_path = FileEdit(label="Save weights to", mode="w", filter="*.pth")
 
-        self.setLayout(QHBoxLayout())
-        self.layout().addWidget(btn)
+        self.train_button = QPushButton("Train")
+        self.eval_button = QPushButton("Evaluate")
 
-    def _on_click(self):
-        print("napari has", len(self.viewer.layers), "layers")
+        # Callbacks
+        self.train_button.clicked.connect(self.train_model)
+        self.eval_button.clicked.connect(self.evaluate_model)
+
+        # Assemble widget
+        self.extend([
+            self.image_input,
+            self.spline_weights_path,
+            self.save_weights_path,
+            self.train_button,
+            self.eval_button,
+        ])
+
+    def _info(self, msg):
+        print(f"[INFO] {msg}")
+
+    def _error(self, msg):
+        print(f"[ERROR] {msg}")
+
+    def _get_image_data(self):
+        img_layer = self.image_input.value
+        if img_layer is None:
+            self._error("No image selected.")
+            return None
+        return img_as_float(img_layer.data)
+
+    def train_model(self):
+        image = self._get_image_data()
+        if image is None:
+            return
+
+        # Charger les poids si disponibles
+        if self.spline_weights_path.value:
+            try:
+                self.model.load_state_dict(torch.load(self.spline_weights_path.value, map_location=self.device))
+                self._info("Spline weights loaded.")
+            except Exception as e:
+                self._error(f"Could not load weights: {e}")
+
+        try:
+            self.model.fit(image, m_ffdnet_color=None, nb_iterations=2000)
+            self._info("Training complete.")
+        except Exception as e:
+            self._error(f"Training failed: {e}")
+            return
+
+        # Sauvegarde des poids
+        if self.save_weights_path.value:
+            try:
+                torch.save(self.model.state_dict(), self.save_weights_path.value)
+                self._info(f"Weights saved to {self.save_weights_path.value}")
+            except Exception as e:
+                self._error(f"Failed to save weights: {e}")
+
+    def evaluate_model(self):
+        image = self._get_image_data()
+        if image is None:
+            return
+
+        try:
+            with torch.no_grad():
+                output = self.model(image, m_drunet_color=None)
+                output = output.cpu().numpy()
+        except Exception as e:
+            self._error(f"Inference failed: {e}")
+            return
+
+        name = self.image_input.value.name + "_denoised"
+        if name in self.viewer.layers:
+            self.viewer.layers[name].data = output
+        else:
+            self.viewer.add_image(output, name=name)
+
