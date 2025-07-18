@@ -5,8 +5,7 @@ description = "A plugin for denoising microscopy images using Noise2VST"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
-  { name = "Ibrahima Alain Gueye" },
-  { email = "gueyeibrahimaalain@gmail.com" },
+  { name = "Ibrahima Alain Gueye", email = "gueyeibrahimaalain@gmail.com" },
 ]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
@@ -31,6 +30,7 @@ dependencies = [
   "qtpy",
   "scikit-image",
   "napari",
+  "Noise2VST @ git+https://github.com/sherbret/Noise2VST.git@feature/make-installable",
 ]
 
 [project.optional-dependencies]
@@ -98,8 +98,6 @@ exclude = [
   ".direnv",
   ".eggs",
   ".git",
-  ".mypy_cache",
-  ".pants.d",
   ".ruff_cache",
   ".svn",
   ".tox",
