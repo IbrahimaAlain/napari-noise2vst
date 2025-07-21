@@ -1,3 +1,8 @@
+"""
+This module defines a Noise2VST denoising widget for Napari,
+including automatic download and loading of pretrained models.
+"""
+
 import sys
 import os
 import torch
@@ -8,12 +13,8 @@ from pathlib import Path
 from magicgui.widgets import Container, create_widget, FileEdit, PushButton
 from skimage.util import img_as_float
 
-# Configuration du chemin vers le module noise2vst
-repo_path = os.path.join(os.path.dirname(__file__), "noise2vst")
-if repo_path not in sys.path:
-    sys.path.insert(0, repo_path)
-
-# Imports du modèle et des utilitaires
+# Import du module noise2vst installé via pip
+import noise2vst
 from noise2vst.models.noise2vst import Noise2VST
 from noise2vst.models.ffdnet import FFDNet
 from noise2vst.models.drunet import DRUNet
@@ -22,6 +23,11 @@ from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import napari
+
+# Détection du dossier d'installation de noise2vst
+NOISE2VST_PATH = os.path.dirname(noise2vst.__file__)
+WEIGHTS_DIR = os.path.join(NOISE2VST_PATH, "pretrained_weights")
+os.makedirs(WEIGHTS_DIR, exist_ok=True)
 
 
 class Noise2VSTWidget(Container):
@@ -39,8 +45,8 @@ class Noise2VSTWidget(Container):
         self.eval_button = PushButton(text="Evaluate")
 
         # Callbacks
-        self.train_button.changed.connect(self.train_model)
-        self.eval_button.changed.connect(self.evaluate_model)
+        self.train_button.clicked.connect(self.train_model)
+        self.eval_button.clicked.connect(self.evaluate_model)
 
         # Assemble widget
         self.extend([
@@ -65,33 +71,29 @@ class Noise2VSTWidget(Container):
         return img_as_float(img_layer.data)
 
     def download_weights(self):
-        weights_dir = Path(repo_path) / "pretrained_weights"
-        weights_dir.mkdir(exist_ok=True)
         base_url = "https://github.com/cszn/KAIR/releases/download/v1.0/"
         filenames = ["ffdnet_color.pth", "drunet_color.pth"]
 
         for fname in filenames:
-            fpath = weights_dir / fname
-            if not fpath.exists():
+            fpath = os.path.join(WEIGHTS_DIR, fname)
+            if not os.path.exists(fpath):
                 self._info(f"Téléchargement de {fname}...")
                 try:
-                    urllib.request.urlretrieve(base_url + fname, str(fpath))
+                    urllib.request.urlretrieve(base_url + fname, fpath)
                     self._info(f"{fname} téléchargé avec succès.")
                 except Exception as e:
                     self._error(f"Échec du téléchargement de {fname}: {e}")
 
     def load_models(self):
-        weights_dir = Path(repo_path) / "pretrained_weights"
-
         ffdnet = FFDNet(color=True).to(self.device).eval()
         drunet = DRUNet(color=True).to(self.device).eval()
 
-        ffdnet.load_state_dict(torch.load(weights_dir / "ffdnet_color.pth", map_location=self.device), strict=True)
-        drunet.load_state_dict(torch.load(weights_dir / "drunet_color.pth", map_location=self.device), strict=True)
+        ffdnet.load_state_dict(torch.load(os.path.join(WEIGHTS_DIR, "ffdnet_color.pth"), map_location=self.device), strict=True)
+        drunet.load_state_dict(torch.load(os.path.join(WEIGHTS_DIR, "drunet_color.pth"), map_location=self.device), strict=True)
 
         return ffdnet, drunet
 
-    def train_model(self, *args):
+    def train_model(self):
         image = self._get_image_data()
         if image is None:
             return
@@ -124,7 +126,7 @@ class Noise2VSTWidget(Container):
             except Exception as e:
                 self._error(f"Failed to save weights: {e}")
 
-    def evaluate_model(self, *args):
+    def evaluate_model(self):
         image = self._get_image_data()
         if image is None:
             return
