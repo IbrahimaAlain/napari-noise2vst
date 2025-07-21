@@ -49,9 +49,9 @@ if repo_path not in sys.path:
     sys.path.insert(0, repo_path)
 
 # Imports du modèle et des utilitaires
-from noise2vst.model.noise2vst import Noise2VST
-from noise2vst.model.ffdnet import FFDNet
-from noise2vst.model.drunet import DRUNet
+from noise2vst.models.noise2vst import Noise2VST
+from noise2vst.models.ffdnet import FFDNet
+from noise2vst.models.drunet import DRUNet
 from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
 
 from typing import TYPE_CHECKING
