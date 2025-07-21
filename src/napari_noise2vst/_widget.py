@@ -9,12 +9,10 @@ import os
 import sys
 import torch
 import numpy as np
-import urllib.request
 from pathlib import Path
 from skimage.util import img_as_float
 
-from magicgui.widgets import Container, create_widget, FileEdit, PushButton
-from magicgui.widgets import Label
+from magicgui.widgets import Container, create_widget, FileEdit, PushButton, Label
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -26,9 +24,9 @@ WEIGHTS_DIR = PLUGIN_DIR / "pretrained_weights"
 WEIGHTS_DIR.mkdir(exist_ok=True)
 
 # Ajouter le repo local noise2vst au sys.path
-repo_path = os.path.join(os.path.dirname(__file__), "noise2vst")
-if repo_path not in sys.path:
-    sys.path.insert(0, repo_path)
+repo_path = PLUGIN_DIR / "noise2vst"
+if str(repo_path) not in sys.path:
+    sys.path.insert(0, str(repo_path))
 
 # Imports du modèle et des utilitaires
 from noise2vst.models.noise2vst import Noise2VST
@@ -36,11 +34,10 @@ from noise2vst.models.ffdnet import FFDNet
 from noise2vst.models.drunet import DRUNet
 from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
 
-# Import de la fonction de download poids automatique (appel direct)
+# Import de la fonction de téléchargement des poids pré-entraînés
 try:
     from napari_noise2vst.pretrained_weights.download import download_weights
 except ImportError:
-    # Fallback si import impossible
     download_weights = None
 
 
@@ -73,7 +70,7 @@ class Noise2VSTWidget(Container):
             self.status,
         ])
 
-        # Télécharger les poids automatiquement au démarrage si possible
+        # Télécharger les poids pré-entraînés au démarrage si possible
         if download_weights is not None:
             self._info("Checking pretrained weights...")
             try:
@@ -116,9 +113,7 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        # Télécharger les poids (au cas où)
         if download_weights is not None:
-            self._info("Downloading pretrained weights if needed...")
             try:
                 download_weights()
             except Exception as e:
@@ -157,9 +152,7 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        # Télécharger les poids (au cas où)
         if download_weights is not None:
-            self._info("Downloading pretrained weights if needed...")
             try:
                 download_weights()
             except Exception as e:
