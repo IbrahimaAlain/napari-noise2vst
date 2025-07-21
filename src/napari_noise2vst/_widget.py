@@ -36,6 +36,13 @@ from noise2vst.models.ffdnet import FFDNet
 from noise2vst.models.drunet import DRUNet
 from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
 
+# Import de la fonction de download poids automatique (appel direct)
+try:
+    from napari_noise2vst.pretrained_weights.download import download_weights
+except ImportError:
+    # Fallback si import impossible
+    download_weights = None
+
 
 class Noise2VSTWidget(Container):
     def __init__(self, viewer: "napari.viewer.Viewer"):
@@ -66,6 +73,17 @@ class Noise2VSTWidget(Container):
             self.status,
         ])
 
+        # Télécharger les poids automatiquement au démarrage si possible
+        if download_weights is not None:
+            self._info("Checking pretrained weights...")
+            try:
+                download_weights()
+                self._info("Pretrained weights ready.")
+            except Exception as e:
+                self._error(f"Automatic weight download failed: {e}")
+        else:
+            self._info("No automatic download function available.")
+
     def _info(self, msg):
         print(f"[INFO] {msg}")
         self.status.value = f"Status: {msg}"
@@ -80,20 +98,6 @@ class Noise2VSTWidget(Container):
             self._error("No image selected.")
             return None
         return img_as_float(img_layer.data)
-
-    def download_weights(self):
-        base_url = "https://github.com/cszn/KAIR/releases/download/v1.0/"
-        filenames = ["ffdnet_color.pth", "drunet_color.pth"]
-
-        for fname in filenames:
-            fpath = WEIGHTS_DIR / fname
-            if not fpath.exists():
-                self._info(f"Downloading {fname}...")
-                try:
-                    urllib.request.urlretrieve(base_url + fname, str(fpath))
-                    self._info(f"{fname} downloaded.")
-                except Exception as e:
-                    self._error(f"Download failed for {fname}: {e}")
 
     def load_models(self):
         ffdnet_path = WEIGHTS_DIR / "ffdnet_color.pth"
@@ -112,7 +116,14 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        self.download_weights()
+        # Télécharger les poids (au cas où)
+        if download_weights is not None:
+            self._info("Downloading pretrained weights if needed...")
+            try:
+                download_weights()
+            except Exception as e:
+                self._error(f"Download failed: {e}")
+                return
 
         try:
             ffdnet, _ = self.load_models()
@@ -145,6 +156,15 @@ class Noise2VSTWidget(Container):
         image = self._get_image_data()
         if image is None:
             return
+
+        # Télécharger les poids (au cas où)
+        if download_weights is not None:
+            self._info("Downloading pretrained weights if needed...")
+            try:
+                download_weights()
+            except Exception as e:
+                self._error(f"Download failed: {e}")
+                return
 
         try:
             _, drunet = self.load_models()
