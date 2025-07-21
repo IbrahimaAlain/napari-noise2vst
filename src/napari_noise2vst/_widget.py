@@ -1,33 +1,40 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
-This module defines a Noise2VST denoising widget for Napari,
-including automatic download and loading of pretrained models.
+Noise2VST Napari Widget: Plugin de débruitage pour napari basé sur Noise2VST
 """
 
-import sys
 import os
+import sys
 import torch
 import numpy as np
 import urllib.request
 from pathlib import Path
-
-from magicgui.widgets import Container, create_widget, FileEdit, PushButton
 from skimage.util import img_as_float
 
-# Import du module noise2vst installé via pip
-import noise2vst
-from noise2vst.models.noise2vst import Noise2VST
-from noise2vst.models.ffdnet import FFDNet
-from noise2vst.models.drunet import DRUNet
-from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
+from magicgui.widgets import Container, create_widget, FileEdit, PushButton
+from magicgui.widgets import Label
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import napari
 
-# Détection du dossier d'installation de noise2vst
-NOISE2VST_PATH = os.path.dirname(noise2vst.__file__)
-WEIGHTS_DIR = os.path.join(NOISE2VST_PATH, "pretrained_weights")
-os.makedirs(WEIGHTS_DIR, exist_ok=True)
+# Définir le chemin vers le dossier pretrained_weights dans le plugin
+PLUGIN_DIR = Path(__file__).parent
+WEIGHTS_DIR = PLUGIN_DIR / "pretrained_weights"
+WEIGHTS_DIR.mkdir(exist_ok=True)
+
+# Ajouter le repo local noise2vst au sys.path
+repo_path = os.path.join(os.path.dirname(__file__), "noise2vst")
+if repo_path not in sys.path:
+    sys.path.insert(0, repo_path)
+
+# Imports du modèle et des utilitaires
+from noise2vst.models.noise2vst import Noise2VST
+from noise2vst.models.ffdnet import FFDNet
+from noise2vst.models.drunet import DRUNet
+from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
 
 
 class Noise2VSTWidget(Container):
@@ -41,12 +48,13 @@ class Noise2VSTWidget(Container):
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
         self.spline_weights_path = FileEdit(label="Load weights (.pth)", mode="r", filter="*.pth")
         self.save_weights_path = FileEdit(label="Save weights to", mode="w", filter="*.pth")
-        self.train_button = PushButton(text="Train")
-        self.eval_button = PushButton(text="Evaluate")
+        self.train_button = PushButton(label="Train")
+        self.eval_button = PushButton(label="Evaluate")
+        self.status = Label(value="Status: Ready")
 
         # Callbacks
-        self.train_button.clicked.connect(self.train_model)
-        self.eval_button.clicked.connect(self.evaluate_model)
+        self.train_button.changed.connect(self.train_model)
+        self.eval_button.changed.connect(self.evaluate_model)
 
         # Assemble widget
         self.extend([
@@ -55,13 +63,16 @@ class Noise2VSTWidget(Container):
             self.save_weights_path,
             self.train_button,
             self.eval_button,
+            self.status,
         ])
 
     def _info(self, msg):
         print(f"[INFO] {msg}")
+        self.status.value = f"Status: {msg}"
 
     def _error(self, msg):
         print(f"[ERROR] {msg}")
+        self.status.value = f"Error: {msg}"
 
     def _get_image_data(self):
         img_layer = self.image_input.value
@@ -75,34 +86,38 @@ class Noise2VSTWidget(Container):
         filenames = ["ffdnet_color.pth", "drunet_color.pth"]
 
         for fname in filenames:
-            fpath = os.path.join(WEIGHTS_DIR, fname)
-            if not os.path.exists(fpath):
-                self._info(f"Téléchargement de {fname}...")
+            fpath = WEIGHTS_DIR / fname
+            if not fpath.exists():
+                self._info(f"Downloading {fname}...")
                 try:
-                    urllib.request.urlretrieve(base_url + fname, fpath)
-                    self._info(f"{fname} téléchargé avec succès.")
+                    urllib.request.urlretrieve(base_url + fname, str(fpath))
+                    self._info(f"{fname} downloaded.")
                 except Exception as e:
-                    self._error(f"Échec du téléchargement de {fname}: {e}")
+                    self._error(f"Download failed for {fname}: {e}")
 
     def load_models(self):
+        ffdnet_path = WEIGHTS_DIR / "ffdnet_color.pth"
+        drunet_path = WEIGHTS_DIR / "drunet_color.pth"
+
         ffdnet = FFDNet(color=True).to(self.device).eval()
         drunet = DRUNet(color=True).to(self.device).eval()
 
-        ffdnet.load_state_dict(torch.load(os.path.join(WEIGHTS_DIR, "ffdnet_color.pth"), map_location=self.device), strict=True)
-        drunet.load_state_dict(torch.load(os.path.join(WEIGHTS_DIR, "drunet_color.pth"), map_location=self.device), strict=True)
+        ffdnet.load_state_dict(torch.load(ffdnet_path, map_location=self.device), strict=True)
+        drunet.load_state_dict(torch.load(drunet_path, map_location=self.device), strict=True)
 
         return ffdnet, drunet
 
-    def train_model(self):
+    def train_model(self, _=None):
         image = self._get_image_data()
         if image is None:
             return
 
         self.download_weights()
+
         try:
             ffdnet, _ = self.load_models()
         except Exception as e:
-            self._error(f"Erreur lors du chargement des modèles : {e}")
+            self._error(f"Model loading failed: {e}")
             return
 
         if self.spline_weights_path.value:
@@ -110,7 +125,7 @@ class Noise2VSTWidget(Container):
                 self.model.load_state_dict(torch.load(self.spline_weights_path.value, map_location=self.device))
                 self._info("Spline weights loaded.")
             except Exception as e:
-                self._error(f"Could not load weights: {e}")
+                self._error(f"Failed to load weights: {e}")
 
         try:
             self.model.fit(image, ffdnet, nb_iterations=2000)
@@ -126,7 +141,7 @@ class Noise2VSTWidget(Container):
             except Exception as e:
                 self._error(f"Failed to save weights: {e}")
 
-    def evaluate_model(self):
+    def evaluate_model(self, _=None):
         image = self._get_image_data()
         if image is None:
             return
@@ -134,7 +149,7 @@ class Noise2VSTWidget(Container):
         try:
             _, drunet = self.load_models()
         except Exception as e:
-            self._error(f"Erreur lors du chargement de DRUNet : {e}")
+            self._error(f"Model loading failed: {e}")
             return
 
         try:
@@ -150,3 +165,4 @@ class Noise2VSTWidget(Container):
             self.viewer.layers[name].data = output
         else:
             self.viewer.add_image(output, name=name)
+        self._info("Denoising complete.")
