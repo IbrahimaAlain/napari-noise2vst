@@ -164,7 +164,6 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-        # Sauvegarde des poids spline
         try:
             torch.save(self.model.state_dict(), spline_path)
             self._info(f"Weights saved to {spline_path}")
@@ -176,7 +175,6 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        # Adapter l'image au format (N, C, H, W)
         if image.ndim == 2:
             image = image[None, None, :, :]
         elif image.ndim == 3:
@@ -187,7 +185,6 @@ class Noise2VSTWidget(Container):
 
         image = torch.from_numpy(image).float().to(self.device)
 
-        # Télécharger les poids (sécurité)
         if download_weights is not None:
             try:
                 download_weights()
@@ -204,6 +201,8 @@ class Noise2VSTWidget(Container):
         try:
             with torch.no_grad():
                 output = self.model(image, drunet)
+                if output.dim() == 4 and output.shape[0] == 1:
+                    output = output.squeeze(0)  # enlever la dimension batch si présente
                 output = output.permute(1, 2, 0).cpu().numpy()
         except Exception as e:
             self._error(f"Inference failed: {e}")
