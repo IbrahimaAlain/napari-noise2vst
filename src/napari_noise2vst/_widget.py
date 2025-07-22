@@ -61,7 +61,7 @@ class Noise2VSTWidget(Container):
             step=100,
             description='Itérations :',
         )
-        self.layout().addWidget(self.iter_slider)
+        self.layout.addWidget(self.iter_slider)
 
         # Callbacks
         self.train_button.changed.connect(self.train_model)
