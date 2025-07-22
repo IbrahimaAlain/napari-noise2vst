@@ -13,7 +13,7 @@ import traceback
 from pathlib import Path
 from skimage.util import img_as_float
 
-from magicgui.widgets import Container, create_widget, PushButton, Label
+from magicgui.widgets import Container, create_widget, PushButton, Label, IntSlider
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -54,6 +54,14 @@ class Noise2VSTWidget(Container):
         self.train_button = PushButton(label="Train")
         self.eval_button = PushButton(label="Evaluate")
         self.status = Label(value="Status: Ready")
+        self.iter_slider = IntSlider(
+            value=2000,
+            min=100,
+            max=10000,
+            step=100,
+            description='Itérations :',
+        )
+        self.layout().addWidget(self.iter_slider)
 
         # Callbacks
         self.train_button.changed.connect(self.train_model)
@@ -111,7 +119,7 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        # 🔄 Adapter l'image au format (N, C, H, W)
+        # Adapter l'image au format (N, C, H, W)
         if image.ndim == 2:  # grayscale
             image = image[None, None, :, :]
         elif image.ndim == 3:  # color
@@ -147,7 +155,9 @@ class Noise2VSTWidget(Container):
 
         # Entraînement
         try:
-            self.model.fit(image, ffdnet, nb_iterations=2000)
+            nb_iter = self.iter_slider.value()
+            self.model.fit(image, ffdnet, nb_iterations=nb_iter)
+
             self._info("Training complete.")
         except Exception as e:
             self._error(f"Training failed: {e}")
