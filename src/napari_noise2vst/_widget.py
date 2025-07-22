@@ -9,7 +9,7 @@ import os
 import sys
 import torch
 import numpy as np
-import traceback  # ajoute ça en haut si pas déjà présent
+import traceback
 from pathlib import Path
 from skimage.util import img_as_float
 
@@ -104,11 +104,23 @@ class Noise2VSTWidget(Container):
         drunet.load_state_dict(torch.load(drunet_path, map_location=self.device), strict=True)
 
         return ffdnet, drunet
+    
 
     def train_model(self, _=None):
         image = self._get_image_data()
         if image is None:
             return
+
+        # 🔄 Adapter l'image au format (N, C, H, W)
+        if image.ndim == 2:  # grayscale
+            image = image[None, None, :, :]
+        elif image.ndim == 3:  # color
+            image = image.transpose(2, 0, 1)[None, :]
+        else:
+            self._error(f"Unsupported image shape: {image.shape}")
+            return
+
+        image = torch.from_numpy(image).float().to(self.device)
 
         # Télécharger les poids (sécurité)
         if download_weights is not None:
@@ -142,7 +154,6 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-
         # Sauvegarde des poids spline
         try:
             torch.save(self.model.state_dict(), spline_path)
@@ -154,6 +165,17 @@ class Noise2VSTWidget(Container):
         image = self._get_image_data()
         if image is None:
             return
+
+        # Adapter l'image au format (N, C, H, W)
+        if image.ndim == 2:
+            image = image[None, None, :, :]
+        elif image.ndim == 3:
+            image = image.transpose(2, 0, 1)[None, :]
+        else:
+            self._error(f"Unsupported image shape: {image.shape}")
+            return
+
+        image = torch.from_numpy(image).float().to(self.device)
 
         # Télécharger les poids (sécurité)
         if download_weights is not None:
@@ -175,6 +197,7 @@ class Noise2VSTWidget(Container):
                 output = output.cpu().numpy()
         except Exception as e:
             self._error(f"Inference failed: {e}")
+            traceback.print_exc()
             return
 
         name = self.image_input.value.name + "_denoised"
