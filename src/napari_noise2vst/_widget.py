@@ -13,7 +13,7 @@ import traceback
 from pathlib import Path
 from skimage.util import img_as_float
 
-from magicgui.widgets import Container, create_widget, PushButton, Label, IntSlider
+from magicgui.widgets import Container, create_widget, PushButton, Label, Slider
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -54,14 +54,14 @@ class Noise2VSTWidget(Container):
         self.train_button = PushButton(label="Train")
         self.eval_button = PushButton(label="Evaluate")
         self.status = Label(value="Status: Ready")
-        self.iter_slider = IntSlider(
+        self.iter_slider = Slider(
             value=2000,
             min=100,
             max=10000,
             step=100,
             description='Itérations :',
         )
-        self.layout.addWidget(self.iter_slider)
+        self.append(self.iter_slider)
 
         # Callbacks
         self.train_button.changed.connect(self.train_model)
