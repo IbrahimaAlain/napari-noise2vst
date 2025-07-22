@@ -9,6 +9,7 @@ import os
 import sys
 import torch
 import numpy as np
+import traceback  # ajoute ça en haut si pas déjà présent
 from pathlib import Path
 from skimage.util import img_as_float
 
@@ -138,7 +139,9 @@ class Noise2VSTWidget(Container):
             self._info("Training complete.")
         except Exception as e:
             self._error(f"Training failed: {e}")
+            traceback.print_exc()
             return
+
 
         # Sauvegarde des poids spline
         try:
