@@ -155,7 +155,7 @@ class Noise2VSTWidget(Container):
 
         # Entraînement
         try:
-            nb_iter = self.iter_slider.value()
+            nb_iter = self.iter_slider.value
             self.model.fit(image, ffdnet, nb_iterations=nb_iter)
 
             self._info("Training complete.")
