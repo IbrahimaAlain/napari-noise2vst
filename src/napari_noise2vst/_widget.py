@@ -204,7 +204,7 @@ class Noise2VSTWidget(Container):
         try:
             with torch.no_grad():
                 output = self.model(image, drunet)
-                output = output.cpu().numpy()
+                output = output.permute(1, 2, 0).cpu().numpy()
         except Exception as e:
             self._error(f"Inference failed: {e}")
             traceback.print_exc()
@@ -214,5 +214,5 @@ class Noise2VSTWidget(Container):
         if name in self.viewer.layers:
             self.viewer.layers[name].data = output
         else:
-            self.viewer.add_image(output, name=name)
+            self.viewer.add_image(output, name=name, rgb=True)
         self._info("Denoising complete.")
