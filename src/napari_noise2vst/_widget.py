@@ -12,7 +12,7 @@ import numpy as np
 from pathlib import Path
 from skimage.util import img_as_float
 
-from magicgui.widgets import Container, create_widget, FileEdit, PushButton, Label
+from magicgui.widgets import Container, create_widget, PushButton, Label
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -50,8 +50,6 @@ class Noise2VSTWidget(Container):
 
         # Widgets
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
-        self.spline_weights_path = FileEdit(label="Load weights (.pth)", mode="r", filter="*.pth")
-        self.save_weights_path = FileEdit(label="Save weights to", mode="w", filter="*.pth")
         self.train_button = PushButton(label="Train")
         self.eval_button = PushButton(label="Evaluate")
         self.status = Label(value="Status: Ready")
@@ -63,8 +61,6 @@ class Noise2VSTWidget(Container):
         # Assemble widget
         self.extend([
             self.image_input,
-            self.spline_weights_path,
-            self.save_weights_path,
             self.train_button,
             self.eval_button,
             self.status,
@@ -113,6 +109,7 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
+        # Télécharger les poids (sécurité)
         if download_weights is not None:
             try:
                 download_weights()
@@ -126,13 +123,16 @@ class Noise2VSTWidget(Container):
             self._error(f"Model loading failed: {e}")
             return
 
-        if self.spline_weights_path.value:
+        # Chargement des poids spline si disponibles
+        spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+        if spline_path.exists():
             try:
-                self.model.load_state_dict(torch.load(self.spline_weights_path.value, map_location=self.device))
+                self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
                 self._info("Spline weights loaded.")
             except Exception as e:
-                self._error(f"Failed to load weights: {e}")
+                self._error(f"Failed to load spline weights: {e}")
 
+        # Entraînement
         try:
             self.model.fit(image, ffdnet, nb_iterations=2000)
             self._info("Training complete.")
@@ -140,18 +140,19 @@ class Noise2VSTWidget(Container):
             self._error(f"Training failed: {e}")
             return
 
-        if self.save_weights_path.value:
-            try:
-                torch.save(self.model.state_dict(), self.save_weights_path.value)
-                self._info(f"Weights saved to {self.save_weights_path.value}")
-            except Exception as e:
-                self._error(f"Failed to save weights: {e}")
+        # Sauvegarde des poids spline
+        try:
+            torch.save(self.model.state_dict(), spline_path)
+            self._info(f"Weights saved to {spline_path}")
+        except Exception as e:
+            self._error(f"Failed to save weights: {e}")
 
     def evaluate_model(self, _=None):
         image = self._get_image_data()
         if image is None:
             return
 
+        # Télécharger les poids (sécurité)
         if download_weights is not None:
             try:
                 download_weights()
