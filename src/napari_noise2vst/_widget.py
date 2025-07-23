@@ -122,111 +122,111 @@ class Noise2VSTWidget(Container):
 
         return ffdnet, drunet
 
-    
-def train_model(self, _=None):
-    image = self._get_image_data()
-    if image is None:
-        return
-
-    # Adapter l'image au format (N, C, H, W)
-    if image.ndim == 2:  # grayscale
-        image = image[None, None, :, :]
-    elif image.ndim == 3:  # color (H, W, C)
-        image = image.transpose(2, 0, 1)[None, :]
-    elif image.ndim == 4:
-        pass  # déjà au bon format
-    else:
-        self._error(f"Unsupported image shape: {image.shape}")
-        return
-
-    image = torch.from_numpy(image).float().to(self.device)
-
-    # Télécharger les poids
-    if download_weights is not None:
-        try:
-            download_weights()
-        except Exception as e:
-            self._error(f"Download failed: {e}")
+        
+    def train_model(self, _=None):
+        image = self._get_image_data()
+        if image is None:
             return
 
-    # Charger les modèles adaptés à l'image
-    try:
-        ffdnet, _ = self.load_models(image)
-    except Exception as e:
-        self._error(f"Model loading failed: {e}")
-        return
-
-    # Charger les poids spline si présents
-    spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
-    if spline_path.exists():
-        try:
-            self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
-            self._info("Spline weights loaded.")
-        except Exception as e:
-            self._error(f"Failed to load spline weights: {e}")
-
-    # Entraînement
-    try:
-        nb_iter = self.iter_slider.value
-        self.model.fit(image, ffdnet, nb_iterations=nb_iter)
-        self._info("Training complete.")
-    except Exception as e:
-        self._error(f"Training failed: {e}")
-        traceback.print_exc()
-        return
-
-    # Sauvegarde
-    try:
-        torch.save(self.model.state_dict(), spline_path)
-        self._info(f"Weights saved to {spline_path}")
-    except Exception as e:
-        self._error(f"Failed to save weights: {e}")
-
-def evaluate_model(self, _=None):
-    image = self._get_image_data()
-    if image is None:
-        return
-
-    if image.ndim == 2:  # grayscale
-        image = image[None, None, :, :]
-    elif image.ndim == 3:  # color (H, W, C)
-        image = image.transpose(2, 0, 1)[None, :]
-    elif image.ndim == 4:
-        pass  # déjà au bon format (N, C, H, W)
-    else:
-        self._error(f"Unsupported image shape: {image.shape}")
-        return
-
-    image = torch.from_numpy(image).float().to(self.device)
-
-    if download_weights is not None:
-        try:
-            download_weights()
-        except Exception as e:
-            self._error(f"Download failed: {e}")
+        # Adapter l'image au format (N, C, H, W)
+        if image.ndim == 2:  # grayscale
+            image = image[None, None, :, :]
+        elif image.ndim == 3:  # color (H, W, C)
+            image = image.transpose(2, 0, 1)[None, :]
+        elif image.ndim == 4:
+            pass  # déjà au bon format
+        else:
+            self._error(f"Unsupported image shape: {image.shape}")
             return
 
-    # Utiliser le nombre de canaux de l'image pour charger le bon modèle
-    try:
-        _, drunet = self.load_models(image)
-    except Exception as e:
-        self._error(f"Model loading failed: {e}")
-        return
+        image = torch.from_numpy(image).float().to(self.device)
 
-    try:
-        with torch.no_grad():
-            output = self.model(image, drunet)
-            if output.dim() == 4 and output.shape[0] == 1:
-                output = output.squeeze(0)  # retirer la dimension batch
-            output = output.permute(1, 2, 0).cpu().numpy()
-    except Exception as e:
-        self._error(f"Inference failed: {e}")
-        traceback.print_exc()
-        return
+        # Télécharger les poids
+        if download_weights is not None:
+            try:
+                download_weights()
+            except Exception as e:
+                self._error(f"Download failed: {e}")
+                return
 
-    name = self.image_input.value.name + "_denoised"
-    if name in self.viewer.layers:
-        self.viewer.layers[name].data = output
-    else:
-        self.viewer.add_image(output, name=name, rgb=(output.shape[-1] == 3))
-    self._info("Denoising complete.")
+        # Charger les modèles adaptés à l'image
+        try:
+            ffdnet, _ = self.load_models(image)
+        except Exception as e:
+            self._error(f"Model loading failed: {e}")
+            return
+
+        # Charger les poids spline si présents
+        spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+        if spline_path.exists():
+            try:
+                self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
+                self._info("Spline weights loaded.")
+            except Exception as e:
+                self._error(f"Failed to load spline weights: {e}")
+
+        # Entraînement
+        try:
+            nb_iter = self.iter_slider.value
+            self.model.fit(image, ffdnet, nb_iterations=nb_iter)
+            self._info("Training complete.")
+        except Exception as e:
+            self._error(f"Training failed: {e}")
+            traceback.print_exc()
+            return
+
+        # Sauvegarde
+        try:
+            torch.save(self.model.state_dict(), spline_path)
+            self._info(f"Weights saved to {spline_path}")
+        except Exception as e:
+            self._error(f"Failed to save weights: {e}")
+
+    def evaluate_model(self, _=None):
+        image = self._get_image_data()
+        if image is None:
+            return
+
+        if image.ndim == 2:  # grayscale
+            image = image[None, None, :, :]
+        elif image.ndim == 3:  # color (H, W, C)
+            image = image.transpose(2, 0, 1)[None, :]
+        elif image.ndim == 4:
+            pass  # déjà au bon format (N, C, H, W)
+        else:
+            self._error(f"Unsupported image shape: {image.shape}")
+            return
+
+        image = torch.from_numpy(image).float().to(self.device)
+
+        if download_weights is not None:
+            try:
+                download_weights()
+            except Exception as e:
+                self._error(f"Download failed: {e}")
+                return
+
+        # Utiliser le nombre de canaux de l'image pour charger le bon modèle
+        try:
+            _, drunet = self.load_models(image)
+        except Exception as e:
+            self._error(f"Model loading failed: {e}")
+            return
+
+        try:
+            with torch.no_grad():
+                output = self.model(image, drunet)
+                if output.dim() == 4 and output.shape[0] == 1:
+                    output = output.squeeze(0)  # retirer la dimension batch
+                output = output.permute(1, 2, 0).cpu().numpy()
+        except Exception as e:
+            self._error(f"Inference failed: {e}")
+            traceback.print_exc()
+            return
+
+        name = self.image_input.value.name + "_denoised"
+        if name in self.viewer.layers:
+            self.viewer.layers[name].data = output
+        else:
+            self.viewer.add_image(output, name=name, rgb=(output.shape[-1] == 3))
+        self._info("Denoising complete.")
