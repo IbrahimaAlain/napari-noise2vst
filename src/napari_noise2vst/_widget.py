@@ -219,6 +219,12 @@ class Noise2VSTWidget(Container):
                 if output.dim() == 4 and output.shape[0] == 1:
                     output = output.squeeze(0)  # retirer la dimension batch
                 output = output.permute(1, 2, 0).cpu().numpy()
+
+                if output.shape[2] == 1:
+                    output = output[..., 0]  # -> (H, W)
+                    rgb_flag = False
+                else:
+                    rgb_flag = True
         except Exception as e:
             self._error(f"Inference failed: {e}")
             traceback.print_exc()
@@ -228,5 +234,5 @@ class Noise2VSTWidget(Container):
         if name in self.viewer.layers:
             self.viewer.layers[name].data = output
         else:
-            self.viewer.add_image(output, name=name, rgb=(output.shape[-1] == 3))
+            self.viewer.add_image(output, name=name, rgb=rgb_flag)
         self._info("Denoising complete.")
