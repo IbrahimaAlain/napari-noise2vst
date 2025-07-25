@@ -64,7 +64,7 @@ class Noise2VSTWidget(Container):
             step=100,
         )
         self.train_button = PushButton(label="Fit the VST model")
-        self.progress_bar = ProgressBar(min=0, max=100, label = "loading" visible=True)
+        self.progress_bar = ProgressBar(min=0, max=100, label = "loading", visible=False)
 
         # Container Step 1
         self.step1_container = Container(widgets=[
@@ -195,9 +195,12 @@ class Noise2VSTWidget(Container):
                 self._error(f"Failed to load spline weights: {e}")
 
         try:
+            self.progress_bar.visible = True
+            self.progress_bar.value = 0
             nb_iter = self.iter_slider.value
-            self.model.fit(image, ffdnet, nb_iterations=nb_iter)
+            self.model.fit(image, ffdnet, nb_iterations=nb_iter, progress_callback=lambda v: setattr(self.progress_bar, "value", v))
             self._info("Training complete.")
+            self.progress_bar.visible = False
             self.step2_container.visible = True
         except Exception as e:
             self._error(f"Training failed: {e}")
