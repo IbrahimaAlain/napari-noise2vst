@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from skimage.util import img_as_float
 from typing import TYPE_CHECKING
-from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar, FileEdit
+from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar
 
 if TYPE_CHECKING:
     import napari
@@ -66,7 +66,7 @@ class Noise2VSTWidget(Container):
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
 
         # Step 1: Training controls
-        self.step1_label = Label(value="Step 1: Train")
+        self.step1_label = Label(value="STEP 1: TRAIN")
         self.iter_slider = Slider(
             label="Number of training iterations:",
             value=2000,
@@ -86,7 +86,7 @@ class Noise2VSTWidget(Container):
         ])
 
         # Step 2: Prediction and evaluation controls
-        self.step2_label = Label(value="Step 2: Predict & Evaluate")
+        self.step2_label = Label(value="STEP 2: PREDICT & EVALUATE")
         self.eval_button = PushButton(label="Run Denoising")
         self.plot_spline_button = PushButton(label="Visualize VST")
         self.save_spline_button = PushButton(label="Save Spline Knots")
