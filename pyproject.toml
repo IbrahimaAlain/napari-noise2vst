@@ -32,6 +32,7 @@ dependencies = [
   "scikit-image",
   "napari",
   "torchvision",
+  "Noise2VST @ git+https://github.com/sherbret/Noise2VST.git@feature/make-installable",
 ]
 
 [project.optional-dependencies]
