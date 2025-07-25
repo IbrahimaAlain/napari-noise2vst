@@ -51,12 +51,11 @@ class Noise2VSTWidget(Container):
         self.model = Noise2VST().to(self.device)
 
         # === Input ===
+        self.input_label = Label(value="Input Image:")
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
-        self.input_label = Label(value="🖼️ Input Image:")
 
         # === Step 1: Training ===
-        self.step1_label = Label(value="🔧 Step 1: Train")
-
+        self.step1_label = Label(value="Step 1: Train")
         self.iter_slider = Slider(
             label="Number of training iterations:",
             value=2000,
@@ -64,16 +63,31 @@ class Noise2VSTWidget(Container):
             max=5000,
             step=100,
         )
-
         self.train_button = PushButton(label="Fit the VST model")
         self.progress_bar = ProgressBar(min=0, max=100, visible=False)
 
-        # === Step 2: Predict & Evaluate ===
-        self.step2_label = Label(value="🧪 Step 2: Predict & Evaluate")
+        # Container Step 1
+        self.step1_container = Container(widgets=[
+            self.step1_label,
+            self.iter_slider,
+            self.train_button,
+            self.progress_bar,
+        ])
 
+        # === Step 2: Predict & Evaluate ===
+        self.step2_label = Label(value="Step 2: Predict & Evaluate")
         self.eval_button = PushButton(label="Run Denoising")
         self.plot_spline_button = PushButton(label="Visualize VST")
         self.save_spline_button = PushButton(label="Save Spline Knots")
+
+        # Container Step 2
+        self.step2_container = Container(widgets=[
+            self.step2_label,
+            self.eval_button,
+            self.plot_spline_button,
+            self.save_spline_button,
+        ])
+        self.step2_container.visible = False
 
         self.status = Label(value="Status: Ready")
 
@@ -87,19 +101,11 @@ class Noise2VSTWidget(Container):
         self.extend([
             self.input_label,
             self.image_input,
-
-            self.step1_label,
-            self.iter_slider,
-            self.train_button,
-            self.progress_bar,
-
-            self.step2_label,
-            self.eval_button,
-            self.plot_spline_button,
-            self.save_spline_button,
-
+            self.step1_container,
+            self.step2_container,
             self.status,
         ])
+
 
 
         # Télécharger les poids pré-entraînés au démarrage si possible
@@ -192,6 +198,7 @@ class Noise2VSTWidget(Container):
             nb_iter = self.iter_slider.value
             self.model.fit(image, ffdnet, nb_iterations=nb_iter)
             self._info("Training complete.")
+            self.step2_container.visible = True
         except Exception as e:
             self._error(f"Training failed: {e}")
             traceback.print_exc()
