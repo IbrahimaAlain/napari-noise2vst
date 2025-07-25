@@ -64,7 +64,7 @@ class Noise2VSTWidget(Container):
             step=100,
         )
         self.train_button = PushButton(label="Fit the VST model")
-        self.progress_bar = ProgressBar(min=0, max=100, visible=False)
+        self.progress_bar = ProgressBar(min=0, max=100, label = "loading" visible=True)
 
         # Container Step 1
         self.step1_container = Container(widgets=[
