@@ -10,6 +10,7 @@ import sys
 import torch
 import numpy as np
 import traceback
+import inspect
 import matplotlib.pyplot as plt
 from pathlib import Path
 from skimage.util import img_as_float
@@ -195,6 +196,8 @@ class Noise2VSTWidget(Container):
                 self._error(f"Failed to load spline weights: {e}")
 
         try:
+            print(inspect.signature(self.model.fit))
+
             self.progress_bar.visible = True
             self.progress_bar.value = 0
             nb_iter = self.iter_slider.value
