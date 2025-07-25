@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from skimage.util import img_as_float
 
-from magicgui.widgets import Container, create_widget, PushButton, Label, Slider
+from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -143,7 +143,7 @@ class Noise2VSTWidget(Container):
 
         ffdnet = FFDNet(color=is_color).to(self.device).eval()
         drunet = DRUNet(color=is_color).to(self.device).eval()
-
+ 
         ffdnet.load_state_dict(torch.load(ffdnet_path, map_location=self.device), strict=True)
         drunet.load_state_dict(torch.load(drunet_path, map_location=self.device), strict=True)
 
@@ -256,8 +256,6 @@ class Noise2VSTWidget(Container):
         else:
             self.viewer.add_image(output, name=name, rgb=rgb_flag)
         self._info("Denoising complete.")
-
-    import matplotlib.pyplot as plt
 
     def plot_spline(self, _=None):
         try:
