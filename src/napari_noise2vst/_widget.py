@@ -10,6 +10,7 @@ import sys
 import torch
 import numpy as np
 import traceback
+import matplotlib.pyplot as plt
 from pathlib import Path
 from skimage.util import img_as_float
 
@@ -62,16 +63,18 @@ class Noise2VSTWidget(Container):
             description='Itérations :',
         )
         self.append(self.iter_slider)
+        self.plot_spline_button = PushButton(label="Afficher les splines")       
 
         # Callbacks
         self.train_button.changed.connect(self.train_model)
         self.eval_button.changed.connect(self.evaluate_model)
-
+        self.plot_spline_button.changed.connect(self.plot_spline)
         # Assemble widget
         self.extend([
             self.image_input,
             self.train_button,
             self.eval_button,
+            self.plot_spline_button,
             self.status,
         ])
 
@@ -105,7 +108,7 @@ class Noise2VSTWidget(Container):
         """
         Charge dynamiquement les modèles FFDNet et DRUNet selon le nombre de canaux de l'image.
         """
-        is_color = image.shape[1] == 3  # image.shape: (B, C, H, W)
+        is_color = image.shape[1] == 3
 
         if is_color:
             ffdnet_path = WEIGHTS_DIR / "ffdnet_color.pth"
@@ -128,20 +131,18 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        # Adapter l'image au format (N, C, H, W)
-        if image.ndim == 2:  # grayscale
+        if image.ndim == 2:
             image = image[None, None, :, :]
-        elif image.ndim == 3:  # color (H, W, C)
+        elif image.ndim == 3:
             image = image.transpose(2, 0, 1)[None, :]
         elif image.ndim == 4:
-            pass  # déjà au bon format
+            pass
         else:
             self._error(f"Unsupported image shape: {image.shape}")
             return
 
         image = torch.from_numpy(image).float().to(self.device)
 
-        # Télécharger les poids
         if download_weights is not None:
             try:
                 download_weights()
@@ -149,14 +150,12 @@ class Noise2VSTWidget(Container):
                 self._error(f"Download failed: {e}")
                 return
 
-        # Charger les modèles adaptés à l'image
         try:
             ffdnet, _ = self.load_models(image)
         except Exception as e:
             self._error(f"Model loading failed: {e}")
             return
 
-        # Charger les poids spline si présents
         spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
         if spline_path.exists():
             try:
@@ -165,7 +164,6 @@ class Noise2VSTWidget(Container):
             except Exception as e:
                 self._error(f"Failed to load spline weights: {e}")
 
-        # Entraînement
         try:
             nb_iter = self.iter_slider.value
             self.model.fit(image, ffdnet, nb_iterations=nb_iter)
@@ -175,7 +173,6 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-        # Sauvegarde
         try:
             torch.save(self.model.state_dict(), spline_path)
             self._info(f"Weights saved to {spline_path}")
@@ -187,12 +184,12 @@ class Noise2VSTWidget(Container):
         if image is None:
             return
 
-        if image.ndim == 2:  # grayscale
+        if image.ndim == 2:
             image = image[None, None, :, :]
-        elif image.ndim == 3:  # color (H, W, C)
+        elif image.ndim == 3: 
             image = image.transpose(2, 0, 1)[None, :]
         elif image.ndim == 4:
-            pass  # déjà au bon format (N, C, H, W)
+            pass
         else:
             self._error(f"Unsupported image shape: {image.shape}")
             return
@@ -206,7 +203,6 @@ class Noise2VSTWidget(Container):
                 self._error(f"Download failed: {e}")
                 return
 
-        # Utiliser le nombre de canaux de l'image pour charger le bon modèle
         try:
             _, drunet = self.load_models(image)
         except Exception as e:
@@ -217,11 +213,11 @@ class Noise2VSTWidget(Container):
             with torch.no_grad():
                 output = self.model(image, drunet)
                 if output.dim() == 4 and output.shape[0] == 1:
-                    output = output.squeeze(0)  # retirer la dimension batch
+                    output = output.squeeze(0)
                 output = output.permute(1, 2, 0).cpu().numpy()
 
                 if output.shape[2] == 1:
-                    output = output[..., 0]  # -> (H, W)
+                    output = output[..., 0]
                     rgb_flag = False
                 else:
                     rgb_flag = True
@@ -236,3 +232,37 @@ class Noise2VSTWidget(Container):
         else:
             self.viewer.add_image(output, name=name, rgb=rgb_flag)
         self._info("Denoising complete.")
+
+    import matplotlib.pyplot as plt
+
+    def plot_spline(self, _=None):
+        try:
+            spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+            if not spline_path.exists():
+                self._error("Les poids spline n'existent pas encore.")
+                return
+
+            self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
+
+            spline1 = self.model.spline1
+            spline2 = self.model.spline2
+
+            x = torch.linspace(0, 1, 1000).to(self.device)
+            y1 = spline1(x).detach().cpu().numpy()
+            y2 = spline2(x).detach().cpu().numpy()
+
+            plt.figure(figsize=(8, 4))
+            plt.plot(x.cpu().numpy(), y1, label="Spline 1 (VST)", color='blue')
+            plt.plot(x.cpu().numpy(), y2, label="Spline 2 (Inverse VST)", color='orange')
+            plt.title("Courbes des splines du VST")
+            plt.xlabel("Entrée")
+            plt.ylabel("Sortie")
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+            self._info("Affichage des splines réussi.")
+        except Exception as e:
+            self._error(f"Erreur lors de l'affichage des splines : {e}")
+            traceback.print_exc()
