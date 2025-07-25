@@ -50,33 +50,57 @@ class Noise2VSTWidget(Container):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = Noise2VST().to(self.device)
 
-        # Widgets
+        # === Input ===
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
-        self.train_button = PushButton(label="Train")
-        self.eval_button = PushButton(label="Evaluate")
-        self.status = Label(value="Status: Ready")
+        self.input_label = Label(value="🖼️ Input Image:")
+
+        # === Step 1: Training ===
+        self.step1_label = Label(value="🔧 Step 1: Train")
+
         self.iter_slider = Slider(
+            label="Number of training iterations:",
             value=2000,
             min=100,
             max=10000,
             step=100,
-            description='Itérations :',
         )
-        self.append(self.iter_slider)
-        self.plot_spline_button = PushButton(label="Afficher les splines")       
 
-        # Callbacks
+        self.train_button = PushButton(label="Fit the VST model")
+        self.progress_bar = ProgressBar(min=0, max=100, visible=False)
+
+        # === Step 2: Predict & Evaluate ===
+        self.step2_label = Label(value="🧪 Step 2: Predict & Evaluate")
+
+        self.eval_button = PushButton(label="Run Denoising")
+        self.plot_spline_button = PushButton(label="Visualize VST")
+        self.save_spline_button = PushButton(label="Save Spline Knots")
+
+        self.status = Label(value="Status: Ready")
+
+        # === Callbacks ===
         self.train_button.changed.connect(self.train_model)
         self.eval_button.changed.connect(self.evaluate_model)
         self.plot_spline_button.changed.connect(self.plot_spline)
-        # Assemble widget
+        self.save_spline_button.changed.connect(self.export_spline_knots)
+
+        # === Assemble all ===
         self.extend([
+            self.input_label,
             self.image_input,
+
+            self.step1_label,
+            self.iter_slider,
             self.train_button,
+            self.progress_bar,
+
+            self.step2_label,
             self.eval_button,
             self.plot_spline_button,
+            self.save_spline_button,
+
             self.status,
         ])
+
 
         # Télécharger les poids pré-entraînés au démarrage si possible
         if download_weights is not None:
