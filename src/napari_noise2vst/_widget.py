@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from skimage.util import img_as_float
 
-from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar
+from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar, FileEdit
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -61,7 +61,7 @@ class Noise2VSTWidget(Container):
             label="Number of training iterations:",
             value=2000,
             min=100,
-            max=10000,
+            max=5000,
             step=100,
         )
 
@@ -287,4 +287,34 @@ class Noise2VSTWidget(Container):
             self._info("Affichage des splines réussi.")
         except Exception as e:
             self._error(f"Erreur lors de l'affichage des splines : {e}")
+            traceback.print_exc()
+                
+    def export_spline_knots(self, _=None):
+        spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+
+        if not spline_path.exists():
+            self._error("Les poids de la VST n'ont pas été trouvés. Veuillez entraîner le modèle d'abord.")
+            return
+
+        try:
+            state_dict = torch.load(spline_path, map_location=self.device)
+            theta_in = state_dict["spline1.theta"].cpu().numpy()
+            theta_out = state_dict["spline2.theta"].cpu().numpy()
+
+            # On suppose que chaque theta correspond à une spline cubique avec 10 noeuds (par ex.)
+            x = np.linspace(0, 1, len(theta_in))
+            knots = list(zip(x, theta_in, theta_out))
+
+            path = FileDialog(mode='w', filter='*.csv', label='Save Spline Knots').get_path()
+            if not path:
+                return
+
+            with open(path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['x', 'y_in', 'y_out'])
+                writer.writerows(knots)
+
+            self._info(f"Nœuds de la spline exportés vers : {path}")
+        except Exception as e:
+            self._error(f"Erreur lors de l’export : {e}")
             traceback.print_exc()
