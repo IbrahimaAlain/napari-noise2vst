@@ -129,6 +129,15 @@ class Noise2VSTWidget(Container):
         else:
             self.update_status("No automatic download function available.")
 
+    def _info(self, msg: str):
+        print(f"[INFO] {msg}")
+        self.status.value = f"Status: {msg}"
+
+    def _error(self, msg: str):
+        print(f"[ERROR] {msg}")
+        self.status.value = f"Error: {msg}"
+
+
     def update_status(self, message: str):
         """
         Update the status label with wrapped text for readability.
@@ -397,24 +406,30 @@ class Noise2VSTWidget(Container):
 
 
     def export_spline_knots(self, _=None):
-        """
-        Export spline knots to a .npz file on disk.
-        """
+        spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+
+        if not spline_path.exists():
+            self._error("Spline weights not found. Please train the model first.")
+            return
+
         try:
-            spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
-            if not spline_path.exists():
-                self.update_status("Spline weights file does not exist.")
-                return
+            state_dict = torch.load(spline_path, map_location=self.device)
+            theta_in = state_dict["spline1.theta"].cpu().numpy()
+            theta_out = state_dict["spline2.theta"].cpu().numpy()
+            x = np.linspace(0, 1, len(theta_in))
+            knots = list(zip(x, theta_in, theta_out))
 
-            self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
+            # Use a FileDialog or similar to get path; here simplified as example:
+            import csv
+            from napari.utils.notifications import show_info
+            path = "spline_knots.csv"  # replace with file dialog in real use
 
-            knots1 = self.model.spline1.get_knots().cpu().numpy()
-            knots2 = self.model.spline2.get_knots().cpu().numpy()
+            with open(path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['x', 'theta_in', 'theta_out'])
+                writer.writerows(knots)
 
-            npz_path = WEIGHTS_DIR / "noise2vst_spline_knots.npz"
-            np.savez(npz_path, knots1=knots1, knots2=knots2)
-
-            self.update_status(f"Spline knots exported to {npz_path}")
+            self._info(f"Spline knots exported to: {path}")
         except Exception as e:
-            self.update_status(f"Failed to export spline knots: {e}")
+            self._error(f"Failed to export spline knots: {e}")
             traceback.print_exc()
