@@ -350,38 +350,51 @@ class Noise2VSTWidget(Container):
 
     def plot_spline(self, _=None):
         """
-        Plot the VST spline functions (forward and inverse) using matplotlib.
+        Plot the learned VST splines (forward and inverse) from the Noise2VST model.
         """
         try:
             spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
             if not spline_path.exists():
-                self.update_status("Spline weights file does not exist.")
+                self._info("Spline weights file does not exist.")
                 return
 
+            # Load spline weights into the model
             self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
 
-            spline1 = self.model.spline1
-            spline2 = self.model.spline2
+            with torch.no_grad():
+                x = torch.linspace(0, 1, self.model.spline1.nb_knots, device=self.device)
+                y = self.model.spline1(x)
+                if getattr(self.model, "inverse", False):
+                    z = self.model.spline1(y, inverse=True)
+                else:
+                    z = self.model.spline2(x)
 
-            x = torch.linspace(0, 1, 1000).to(self.device)
-            y1 = spline1(x).detach().cpu().numpy()
-            y2 = spline2(x).detach().cpu().numpy()
+                # Move to CPU for plotting
+                x_cpu, y_cpu, z_cpu = x.cpu(), y.cpu(), z.cpu()
+                c = y_cpu.min()
 
-            plt.figure(figsize=(8, 4))
-            plt.plot(x.cpu().numpy(), y1, label="Spline 1 (VST)", color='blue')
-            plt.plot(x.cpu().numpy(), y2, label="Spline 2 (Inverse VST)", color='orange')
-            plt.title("Noise2VST Splines")
-            plt.xlabel("Input")
-            plt.ylabel("Output")
-            plt.grid(True)
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
+                plt.figure(figsize=(8, 4))
+                if getattr(self.model, "inverse", False):
+                    plt.plot(x_cpu, y_cpu - c, color='blue', label=r"$f_\theta$")
+                    plt.plot(y_cpu - c, z_cpu, color='orange', label=r"$f^{inv}_{\theta, \alpha, \beta}$")
+                else:
+                    plt.plot(x_cpu, y_cpu - c, color='blue', label=r"$f_{\theta_1}$")
+                    plt.plot(x_cpu - c, z_cpu, color='orange', label=r"$f_{\theta_2}$")
 
-            self.update_status("Spline visualization successful.")
+                plt.plot(x_cpu, x_cpu, "--", color="black", label="identity")
+                plt.xlabel("Input")
+                plt.ylabel("Output")
+                plt.title("Learned VST by Noise2VST")
+                plt.grid(True)
+                plt.legend()
+                plt.tight_layout()
+                plt.show()
+
+            self._info("Spline visualization successful.")
         except Exception as e:
-            self.update_status(f"Failed to plot splines: {e}")
+            self._error(f"Failed to plot splines: {e}")
             traceback.print_exc()
+
 
     def export_spline_knots(self, _=None):
         """
