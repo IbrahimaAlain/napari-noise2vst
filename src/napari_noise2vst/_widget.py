@@ -311,7 +311,6 @@ class Noise2VSTWidget(Container):
             theta_in = state_dict["spline1.theta"].cpu().numpy()
             theta_out = state_dict["spline2.theta"].cpu().numpy()
 
-            # On suppose que chaque theta correspond à une spline cubique avec 10 noeuds (par ex.)
             x = np.linspace(0, 1, len(theta_in))
             knots = list(zip(x, theta_in, theta_out))
 
