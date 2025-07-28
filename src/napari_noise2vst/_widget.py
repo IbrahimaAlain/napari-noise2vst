@@ -13,6 +13,7 @@ import torch
 import numpy as np
 import traceback
 import csv
+import re
 import matplotlib.pyplot as plt
 from pathlib import Path
 from skimage.util import img_as_float
@@ -66,6 +67,8 @@ class Noise2VSTWidget(Container):
         # Input image selector
         self.input_label = Label(value="Input Image:")
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
+        self.viewer.layers.selection.events.changed.connect(self.sync_input_image_with_selection)
+
 
         # Step 1: Training controls
         self.step1_label = Label(value="STEP 1: TRAIN")
@@ -90,6 +93,7 @@ class Noise2VSTWidget(Container):
         # Step 2: Prediction and evaluation controls
         self.step2_label = Label(value="STEP 2: PREDICT & EVALUATE")
         self.eval_button = PushButton(label="Run Denoising")
+        self.run_denoise_progress = ProgressBar(min=0, max=100, visible=False)
         self.plot_spline_button = PushButton(label="Visualize VST")
         self.save_spline_button = PushButton(label="Save Spline Knots")
 
@@ -97,6 +101,7 @@ class Noise2VSTWidget(Container):
         self.step2_container = Container(widgets=[
             self.step2_label,
             self.eval_button,
+            self.run_denoise_progress,
             self.plot_spline_button,
             self.save_spline_button,
         ])
@@ -158,7 +163,7 @@ class Noise2VSTWidget(Container):
         Returns:
             Wrapped text with newlines inserted.
         """
-        words = text.split()
+        words = re.split(r"[ /]+", text)
         lines = []
         current_line = ""
 
@@ -172,6 +177,20 @@ class Noise2VSTWidget(Container):
             lines.append(current_line)
 
         return "\n".join(lines)
+    
+    def sync_input_image_with_selection(self):
+        """
+        Automatically update the input image field when a new image layer is selected in the viewer.
+        """
+        if not self.viewer.layers:
+            return
+
+        selected = self.viewer.layers.selection
+        if selected:
+            layer = next(iter(selected))
+            if isinstance(layer, napari.layers.Image):
+                self.image_input.value = layer
+                self.update_status(f"Image input set to: {layer.name}")    
 
     def _get_image_data(self):
         """
@@ -321,14 +340,13 @@ class Noise2VSTWidget(Container):
             return
 
         try:
-            self.progress_bar.visible = True
-            self.progress_bar.value = 0
-
+            self.run_denoise_progress.visible = True
+            self.run_denoise_progress.value = 0
             with torch.no_grad():
                 output = self.model(image, drunet)
 
-                self.progress_bar.value = 100
-                self.progress_bar.visible = False
+                self.run_denoise_progress.value = 100
+                self.run_denoise_progress.visible = False
 
                 # Squeeze batch dimension if present
                 if output.dim() == 4 and output.shape[0] == 1:
