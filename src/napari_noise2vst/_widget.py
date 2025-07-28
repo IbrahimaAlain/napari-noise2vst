@@ -413,7 +413,6 @@ class Noise2VSTWidget(Container):
         Plot the learned VST splines (forward and inverse) for the currently selected input image.
         The figure is customized and saved as a PNG named after the image.
         """
-        import re
         try:
             # Ensure an image is selected
             image_layer = self.image_input.value
@@ -482,39 +481,40 @@ class Noise2VSTWidget(Container):
 
 
     def export_spline_knots(self, _=None):
-        """Export the spline theta values as (x, theta_in, theta_out) to a CSV file."""
+        """Export spline theta values (x, theta_in, theta_out) as CSV for the selected image."""
+        import re
 
-        spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+        image_layer = self.image_input.value
+        if not image_layer:
+            self._error("No image selected.")
+            return
+
+        safe_name = re.sub(r"[^\w.-]", "_", image_layer.name)
+        spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
+
         if not spline_path.exists():
-            self._error("Spline weights not found. Please train the model first.")
+            self._error(f"No spline weights found for '{image_layer.name}'. Train the model first.")
             return
 
         try:
-            state_dict = torch.load(spline_path, map_location=self.device)
-            theta_in = state_dict["spline1.theta"].cpu().numpy()
-            theta_out = state_dict["spline2.theta"].cpu().numpy()
-            x = np.linspace(0, 1, len(theta_in))
-            knots = list(zip(x, theta_in, theta_out))
+            weights = torch.load(spline_path, map_location=self.device)
+            x = np.linspace(0, 1, len(weights["spline1.theta"]))
+            rows = zip(x, weights["spline1.theta"].cpu(), weights["spline2.theta"].cpu())
 
-            # Ask user for the export path
-            file_dialog = QFileDialog()
-            file_path, _ = file_dialog.getSaveFileName(
+            path, _ = QFileDialog.getSaveFileName(
                 caption="Export Spline Knots",
                 filter="CSV Files (*.csv)",
-                directory="spline_knots.csv"
+                directory=f"spline_knots_{safe_name}.csv"
             )
-
-            if not file_path:
+            if not path:
                 self._info("Export cancelled.")
                 return
 
-            with open(file_path, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['x', 'theta_in', 'theta_out'])
-                writer.writerows(knots)
+            with open(path, 'w', newline='') as f:
+                csv.writer(f).writerows([["x", "theta_in", "theta_out"], *rows])
 
-            self._info(f"Spline knots exported to: {file_path}")
+            self._info(f"Exported to: {path}")
 
         except Exception as e:
-            self._error(f"Failed to export spline knots: {e}")
+            self._error(f"Export failed: {e}")
             traceback.print_exc()
