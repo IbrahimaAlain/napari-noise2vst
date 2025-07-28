@@ -480,57 +480,57 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
 
 
-def export_spline_knots(self, _=None):
-    """Export spline theta values (x, theta_in [, theta_out]) as CSV for the selected image."""
-    import re
+    def export_spline_knots(self, _=None):
+        """Export spline theta values (x, theta_in [, theta_out]) as CSV for the selected image."""
+        import re
 
-    image_layer = self.image_input.value
-    if not image_layer:
-        self._error("No image selected.")
-        return
-
-    safe_name = re.sub(r"[^\w.-]", "_", image_layer.name)
-    spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
-
-    if not spline_path.exists():
-        self._error(f"No spline weights found for '{image_layer.name}'. Train the model first.")
-        return
-
-    try:
-        weights = torch.load(spline_path, map_location=self.device)
-        theta_in = weights.get("spline1.theta")
-        theta_out = weights.get("spline2.theta")  # Might be None
-
-        if theta_in is None:
-            self._error("spline1.theta not found in weights.")
+        image_layer = self.image_input.value
+        if not image_layer:
+            self._error("No image selected.")
             return
 
-        x = np.linspace(0, 1, len(theta_in))
-        theta_in = theta_in.cpu().numpy()
+        safe_name = re.sub(r"[^\w.-]", "_", image_layer.name)
+        spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
 
-        # Prepare rows depending on presence of spline2
-        if theta_out is not None:
-            theta_out = theta_out.cpu().numpy()
-            header = ["x", "theta_in", "theta_out"]
-            rows = zip(x, theta_in, theta_out)
-        else:
-            header = ["x", "theta_in"]
-            rows = zip(x, theta_in)
-
-        path, _ = QFileDialog.getSaveFileName(
-            caption="Export Spline Knots",
-            filter="CSV Files (*.csv)",
-            directory=f"spline_knots_{safe_name}.csv"
-        )
-        if not path:
-            self._info("Export cancelled.")
+        if not spline_path.exists():
+            self._error(f"No spline weights found for '{image_layer.name}'. Train the model first.")
             return
 
-        with open(path, 'w', newline='') as f:
-            csv.writer(f).writerows([header, *rows])
+        try:
+            weights = torch.load(spline_path, map_location=self.device)
+            theta_in = weights.get("spline1.theta")
+            theta_out = weights.get("spline2.theta")  # Might be None
 
-        self._info(f"Spline knots exported to: {path}")
+            if theta_in is None:
+                self._error("spline1.theta not found in weights.")
+                return
 
-    except Exception as e:
-        self._error(f"Export failed: {e}")
-        traceback.print_exc()
+            x = np.linspace(0, 1, len(theta_in))
+            theta_in = theta_in.cpu().numpy()
+
+            # Prepare rows depending on presence of spline2
+            if theta_out is not None:
+                theta_out = theta_out.cpu().numpy()
+                header = ["x", "theta_in", "theta_out"]
+                rows = zip(x, theta_in, theta_out)
+            else:
+                header = ["x", "theta_in"]
+                rows = zip(x, theta_in)
+
+            path, _ = QFileDialog.getSaveFileName(
+                caption="Export Spline Knots",
+                filter="CSV Files (*.csv)",
+                directory=f"spline_knots_{safe_name}.csv"
+            )
+            if not path:
+                self._info("Export cancelled.")
+                return
+
+            with open(path, 'w', newline='') as f:
+                csv.writer(f).writerows([header, *rows])
+
+            self._info(f"Spline knots exported to: {path}")
+
+        except Exception as e:
+            self._error(f"Export failed: {e}")
+            traceback.print_exc()
