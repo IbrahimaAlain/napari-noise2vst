@@ -164,7 +164,7 @@ class Noise2VSTWidget(Container):
         Returns:
             Wrapped text with newlines inserted.
         """
-        words = re.split(r"[ \]+", text)
+        words = re.split(r"[ /\\]+", text)
         lines = []
         current_line = ""
 
