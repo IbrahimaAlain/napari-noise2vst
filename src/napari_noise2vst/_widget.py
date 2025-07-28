@@ -380,30 +380,43 @@ class Noise2VSTWidget(Container):
 
     def plot_spline(self, _=None):
         """
-        Plot the learned VST splines (forward and inverse) from the Noise2VST model.
+        Plot the learned VST splines (forward and inverse) for the currently selected input image.
+        The figure is customized and saved as a PNG named after the image.
         """
         try:
+            # Ensure an image is selected
+            image_layer = self.image_input.value
+            if image_layer is None:
+                self.update_status("No image selected for spline plotting.")
+                return
+            image_name = image_layer.name
+
+            # Load spline weights
             spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
             if not spline_path.exists():
-                self._info("Spline weights file does not exist.")
+                self.update_status("Spline weights file does not exist.")
                 return
 
-            # Load spline weights into the model
             self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
 
             with torch.no_grad():
                 x = torch.linspace(0, 1, self.model.spline1.nb_knots, device=self.device)
                 y = self.model.spline1(x)
+
                 if getattr(self.model, "inverse", False):
                     z = self.model.spline1(y, inverse=True)
                 else:
                     z = self.model.spline2(x)
 
-                # Move to CPU for plotting
+                # Convert to CPU
                 x_cpu, y_cpu, z_cpu = x.cpu(), y.cpu(), z.cpu()
                 c = y_cpu.min()
 
-                plt.figure(figsize=(8, 4))
+                # Prepare custom figure
+                fig_title = f"VST Splines - {image_name}"
+                fig = plt.figure(num=fig_title, figsize=(8, 4))
+                fig.clf()  # Clear in case it already exists
+
                 if getattr(self.model, "inverse", False):
                     plt.plot(x_cpu, y_cpu - c, color='blue', label=r"$f_\theta$")
                     plt.plot(y_cpu - c, z_cpu, color='orange', label=r"$f^{inv}_{\theta, \alpha, \beta}$")
@@ -414,16 +427,24 @@ class Noise2VSTWidget(Container):
                 plt.plot(x_cpu, x_cpu, "--", color="black", label="identity")
                 plt.xlabel("Input")
                 plt.ylabel("Output")
-                plt.title("Learned VST by Noise2VST")
+                plt.title(fig_title)
                 plt.grid(True)
                 plt.legend()
                 plt.tight_layout()
+
+                # Save the plot
+                output_dir = Path("outputs")
+                output_dir.mkdir(exist_ok=True)
+                safe_name = re.sub(r'[^\w\-_.]', '_', image_name)
+                save_path = output_dir / f"spline_plot_{safe_name}.png"
+                plt.savefig(save_path, dpi=150)
                 plt.show()
 
-            self._info("Spline visualization successful.")
+                self.update_status(f"Spline plot saved: {save_path}")
         except Exception as e:
-            self._error(f"Failed to plot splines: {e}")
+            self.update_status(f"Failed to plot splines: {e}")
             traceback.print_exc()
+
 
     def export_spline_knots(self, _=None):
         """Export the spline theta values as (x, theta_in, theta_out) to a CSV file."""
