@@ -15,6 +15,7 @@ import traceback
 import csv
 import re
 import matplotlib.pyplot as plt
+import napari
 from pathlib import Path
 from skimage.util import img_as_float
 from typing import TYPE_CHECKING
