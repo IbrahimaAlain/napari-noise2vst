@@ -435,7 +435,7 @@ class Noise2VSTWidget(Container):
                 # Save the plot
                 output_dir = Path("outputs")
                 output_dir.mkdir(exist_ok=True)
-                safe_name = re.sub(r'[^\w\-_.]', '_', image_name)
+                safe_name = re.sub(r'[^\w._-]', '_', image_name)
                 save_path = output_dir / f"spline_plot_{safe_name}.png"
                 plt.savefig(save_path, dpi=150)
                 plt.show()
