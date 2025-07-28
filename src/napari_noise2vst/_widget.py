@@ -266,11 +266,20 @@ class Noise2VSTWidget(Container):
             self.update_status(f"Model loading failed: {e}")
             return
 
-        spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+        # Compose spline weights path based on selected image name
+        image_layer = self.image_input.value
+        if image_layer is None:
+            self.update_status("No input image selected. Cannot load/save weights.")
+            return
+
+        image_name = image_layer.name
+        spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
+
+        # Load spline weights if exist for this image
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
-                self.update_status("Spline weights loaded.")
+                self.update_status(f"Spline weights loaded for image '{image_name}'.")
             except Exception as e:
                 self.update_status(f"Failed to load spline weights: {e}")
 
@@ -297,7 +306,7 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-        # Save trained spline weights
+        # Save trained spline weights with image-specific filename
         try:
             torch.save(self.model.state_dict(), spline_path)
             self.update_status(f"Weights saved to {spline_path}")
@@ -326,6 +335,7 @@ class Noise2VSTWidget(Container):
 
         image = torch.from_numpy(image).float().to(self.device)
 
+        # Download weights if needed
         if download_weights is not None:
             try:
                 download_weights()
@@ -339,6 +349,25 @@ class Noise2VSTWidget(Container):
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
+
+        # Load spline weights specific to the selected image (if any)
+        image_layer = self.image_input.value
+        if image_layer is None:
+            self.update_status("No input image selected. Cannot load spline weights.")
+            return
+
+        image_name = image_layer.name
+        spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
+
+        if spline_path.exists():
+            try:
+                self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
+                self.update_status(f"Spline weights loaded for image '{image_name}'.")
+            except Exception as e:
+                self.update_status(f"Failed to load spline weights: {e}")
+                return
+        else:
+            self.update_status(f"No spline weights found for image '{image_name}', running inference with default model.")
 
         try:
             self.run_denoise_progress.visible = True
@@ -362,37 +391,42 @@ class Noise2VSTWidget(Container):
                 else:
                     rgb_flag = True
         except Exception as e:
-            self.progress_bar.visible = False
+            self.run_denoise_progress.visible = False
             self.update_status(f"Inference failed: {e}")
             traceback.print_exc()
             return
 
-        # Compose new layer name based on input
-        name = self.image_input.value.name + "_denoised"
+        # Compose new layer name based on input image name
+        denoised_name = f"{image_name}_denoised"
 
         # Update existing layer or add a new one
-        if name in self.viewer.layers:
-            self.viewer.layers[name].data = output
+        if denoised_name in self.viewer.layers:
+            self.viewer.layers[denoised_name].data = output
         else:
-            self.viewer.add_image(output, name=name, rgb=rgb_flag)
+            self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag)
 
         self.update_status("Denoising complete.")
+
 
     def plot_spline(self, _=None):
         """
         Plot the learned VST splines (forward and inverse) for the currently selected input image.
         The figure is customized and saved as a PNG named after the image.
         """
+        import re
         try:
             # Ensure an image is selected
             image_layer = self.image_input.value
             if image_layer is None:
                 self.update_status("No image selected for spline plotting.")
                 return
+
             image_name = image_layer.name
 
-            # Construct spline weights path based on image name
+            # Sécuriser le nom pour les fichiers
             safe_name = re.sub(r'[^\w._-]', '_', image_name)
+
+            # Construct spline weights path based on sanitized image name
             spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
             if not spline_path.exists():
                 self.update_status(f"Spline weights file does not exist for image '{image_name}'.")
@@ -445,6 +479,7 @@ class Noise2VSTWidget(Container):
             self.update_status(f"Failed to plot spline: {e}")
             import traceback
             traceback.print_exc()
+
 
     def export_spline_knots(self, _=None):
         """Export the spline theta values as (x, theta_in, theta_out) to a CSV file."""
