@@ -391,12 +391,14 @@ class Noise2VSTWidget(Container):
                 return
             image_name = image_layer.name
 
-            # Load spline weights
-            spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
+            # Construct spline weights path based on image name
+            safe_name = re.sub(r'[^\w._-]', '_', image_name)
+            spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
             if not spline_path.exists():
-                self.update_status("Spline weights file does not exist.")
+                self.update_status(f"Spline weights file does not exist for image '{image_name}'.")
                 return
 
+            # Load spline weights for the selected image
             self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
 
             with torch.no_grad():
@@ -408,14 +410,14 @@ class Noise2VSTWidget(Container):
                 else:
                     z = self.model.spline2(x)
 
-                # Convert to CPU
+                # Convert to CPU for plotting
                 x_cpu, y_cpu, z_cpu = x.cpu(), y.cpu(), z.cpu()
                 c = y_cpu.min()
 
-                # Prepare custom figure
+                # Prepare custom figure with personalized name
                 fig_title = f"VST Splines - {image_name}"
                 fig = plt.figure(num=fig_title, figsize=(8, 4))
-                fig.clf()  # Clear in case it already exists
+                fig.clf()  # Clear figure if exists
 
                 if getattr(self.model, "inverse", False):
                     plt.plot(x_cpu, y_cpu - c, color='blue', label=r"$f_\theta$")
@@ -432,19 +434,17 @@ class Noise2VSTWidget(Container):
                 plt.legend()
                 plt.tight_layout()
 
-                # Save the plot
+                # Save the plot in outputs folder
                 output_dir = Path("outputs")
                 output_dir.mkdir(exist_ok=True)
-                safe_name = re.sub(r'[^\w._-]', '_', image_name)
                 save_path = output_dir / f"spline_plot_{safe_name}.png"
                 plt.savefig(save_path, dpi=150)
                 plt.show()
 
-                self.update_status(f"Spline plot saved: {save_path}")
         except Exception as e:
-            self.update_status(f"Failed to plot splines: {e}")
+            self.update_status(f"Failed to plot spline: {e}")
+            import traceback
             traceback.print_exc()
-
 
     def export_spline_knots(self, _=None):
         """Export the spline theta values as (x, theta_in, theta_out) to a CSV file."""
