@@ -406,47 +406,40 @@ class Noise2VSTWidget(Container):
             self._error(f"Failed to plot splines: {e}")
             traceback.print_exc()
 
-def export_spline_knots(self, _=None):
-    """
-    Export the spline theta values as (x, theta_in, theta_out) to a CSV file.
-    """
-    try:
+    def export_spline_knots(self, _=None):
+        """Export the spline theta values as (x, theta_in, theta_out) to a CSV file."""
+
         spline_path = WEIGHTS_DIR / "noise2vst_spline.pth"
         if not spline_path.exists():
-            self._info("Spline weights not found. Please train the model first.")
+            self._error("Spline weights not found. Please train the model first.")
             return
 
-        state_dict = torch.load(spline_path, map_location=self.device)
-        theta_in = state_dict["spline1.theta"].cpu().numpy()
-        theta_out = state_dict["spline2.theta"].cpu().numpy()
-        x = np.linspace(0, 1, len(theta_in))
-        knots = list(zip(x, theta_in, theta_out))
+        try:
+            state_dict = torch.load(spline_path, map_location=self.device)
+            theta_in = state_dict["spline1.theta"].cpu().numpy()
+            theta_out = state_dict["spline2.theta"].cpu().numpy()
+            x = np.linspace(0, 1, len(theta_in))
+            knots = list(zip(x, theta_in, theta_out))
 
-        # Proper QFileDialog with parent from Napari viewer
-        from napari.utils import misc
-        from qtpy.QtWidgets import QWidget
-        parent = misc.maybe_use_gui_qt()
-        parent = QWidget()  # Or use self.viewer.window._qt_window if available
+            # Ask user for the export path
+            file_dialog = QFileDialog()
+            file_path, _ = file_dialog.getSaveFileName(
+                caption="Export Spline Knots",
+                filter="CSV Files (*.csv)",
+                directory="spline_knots.csv"
+            )
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            parent=parent,
-            caption="Export Spline Knots",
-            filter="CSV Files (*.csv)",
-            directory=str(Path.home() / "spline_knots.csv")
-        )
+            if not file_path:
+                self._info("Export cancelled.")
+                return
 
-        if not file_path:
-            self._info("Export cancelled.")
-            return
+            with open(file_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['x', 'theta_in', 'theta_out'])
+                writer.writerows(knots)
 
-        with open(file_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['x', 'theta_in', 'theta_out'])
-            writer.writerows(knots)
+            self._info(f"Spline knots exported to: {file_path}")
 
-        self._info(f"Spline knots exported to: {file_path}")
-
-    except Exception as e:
-        self._error(f"Failed to export spline knots: {e}")
-        traceback.print_exc()
-
+        except Exception as e:
+            self._error(f"Failed to export spline knots: {e}")
+            traceback.print_exc()
