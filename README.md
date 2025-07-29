@@ -37,6 +37,11 @@ If napari is not already installed, you can install `napari-noise2vst` with napa
 pip install "napari-noise2vst[all]"
 ```
 
+If you prefer installing napari separately:
+
+```
+pip install "napari[all]"
+```
 
 To install latest development version :
 
@@ -44,7 +49,16 @@ To install latest development version :
 pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
 ```
 
+## Dependencies
 
+This plugin relies on the [`Noise2VST`](https://github.com/sherbret/Noise2VST) framework.  
+To use the latest installable version, you can install it directly via:
+
+```
+pip install git+https://github.com/sherbret/Noise2VST.git@feature/make-installable
+```
+
+Alternatively, if you install this plugin via pip with dependencies, `Noise2VST` will be installed automatically.
 
 ## Contributing
 
