@@ -23,7 +23,15 @@ and review the napari docs for plugin developers:
 https://napari.org/stable/plugins/index.html
 -->
 
+
 ## Installation
+
+To install in an environment using conda:
+
+```
+conda env create -f environment.yml
+conda activate noise2vst
+```
 
 You can install `napari-noise2vst` via [pip]:
 
@@ -51,14 +59,20 @@ pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
 
 ## Dependencies
 
-This plugin relies on the [`Noise2VST`](https://github.com/sherbret/Noise2VST) framework.  
-To use the latest installable version, you can install it directly via:
+This plugin relies on the Noise2VST framework.
+The exact version used is available at:
+https://github.com/sherbret/Noise2VST/tree/feature/make-installable
 
-```
-pip install git+https://github.com/sherbret/Noise2VST.git@feature/make-installable
-```
+    ✅ No manual installation is required — this version is installed automatically when you install the plugin.
 
-Alternatively, if you install this plugin via pip with dependencies, `Noise2VST` will be installed automatically.
+## Citation
+
+@article{herbreteau2024noise2vst,
+  title={Self-Calibrated Variance-Stabilizing Transformations for Real-World Image Denoising},
+  author={Herbreteau, S{\'e}bastien and Unser, Michael},
+  journal={arXiv preprint arXiv:2407.17399},
+  year={2024}
+}
 
 ## Contributing
 
