@@ -274,8 +274,7 @@ class Noise2VSTWidget(Container):
         try:
             self.progress_bar.visible = True
             self.progress_bar.value = 0
-            self.update_status("Training started.")
-
+            self.update_status("Training started...")
             nb_iter = self.iter_slider.value
 
             # Train model with progress callback updating progress bar
@@ -389,7 +388,12 @@ class Noise2VSTWidget(Container):
         denoised_name = f"{image_name}_denoised"
 
         # Update existing layer or add a new one
-        if denoised_name in self.viewer.limage_namelete.")
+        if denoised_name in self.viewer.layers:
+            self.viewer.layers[denoised_name].data = output
+        else:
+            self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag)
+
+        self.update_status("Denoising complete.")
 
 
     def plot_spline(self, _=None):
