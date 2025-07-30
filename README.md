@@ -52,8 +52,8 @@ Click the Run Denoise button to generate the denoised version of the input image
 
 ![img_5.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_5.png)
 
-Once training is complete, the plugin automatically stores the model weights.
-Click the Run Denoise button to generate the denoised version of the input image.
+The denoised image appears as a new layer in the napari viewer, alongside the original one.
+You can toggle visibility, adjust contrast, and compare both layers interactively.
 
 ![img_6.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_6.png)
 
