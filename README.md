@@ -9,7 +9,8 @@
 [![npe2](https://img.shields.io/badge/plugin-npe2-blue?link=https://napari.org/stable/plugins/index.html)](https://napari.org/stable/plugins/index.html)
 [![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-purple.json)](https://github.com/copier-org/copier)
 
-A plugin for denoising microscopy images using Noise2VST
+> A plugin for denoising microscopy images using Noise2VST  
+> Developed by **Ibrahima Alain GUEYE**
 
 ----------------------------------
 
@@ -17,12 +18,12 @@ This [napari] plugin was generated with [copier] using the [napari-plugin-templa
 
 <!--
 Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/napari-plugin-template#getting-started
+https://github.com/napari/napari-plugin-template#gett
+Dependenciesing-started
 
 and review the napari docs for plugin developers:
 https://napari.org/stable/plugins/index.html
 -->
-
 
 ## Installation
 
@@ -59,7 +60,7 @@ pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
 
 ## Dependencies
 
-This plugin relies on the Noise2VST framework.
+This plugin relies on the Noise2VST framework, developped by **Sébastien SHERBRET**.
 The exact version used is available at:
 https://github.com/sherbret/Noise2VST/tree/feature/make-installable
 
@@ -67,12 +68,14 @@ https://github.com/sherbret/Noise2VST/tree/feature/make-installable
 
 ## Citation
 
+```Bibtext
 @article{herbreteau2024noise2vst,
   title={Self-Calibrated Variance-Stabilizing Transformations for Real-World Image Denoising},
   author={Herbreteau, S{\'e}bastien and Unser, Michael},
   journal={arXiv preprint arXiv:2407.17399},
   year={2024}
 }
+```
 
 ## Contributing
 
