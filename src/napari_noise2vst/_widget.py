@@ -274,6 +274,7 @@ class Noise2VSTWidget(Container):
         try:
             self.progress_bar.visible = True
             self.progress_bar.value = 0
+            self.update_status("Training started.")
 
             nb_iter = self.iter_slider.value
 
@@ -388,12 +389,7 @@ class Noise2VSTWidget(Container):
         denoised_name = f"{image_name}_denoised"
 
         # Update existing layer or add a new one
-        if denoised_name in self.viewer.layers:
-            self.viewer.layers[denoised_name].data = output
-        else:
-            self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag)
-
-        self.update_status("Denoising complete.")
+        if denoised_name in self.viewer.limage_namelete.")
 
 
     def plot_spline(self, _=None):
@@ -414,7 +410,7 @@ class Noise2VSTWidget(Container):
             safe_name = re.sub(r"[^\w.-]", "_", base_name)
             spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
             if not spline_path.exists():
-                self.update_status(f"Spline weights file does not exist for image '{image_name}'.")
+                self.update_status(f"Spline weights file does not exist for image '{image_layer.name}'.")
                 return
 
             # Load spline weights for the selected image
@@ -434,7 +430,7 @@ class Noise2VSTWidget(Container):
                 c = y_cpu.min()
 
                 # Prepare custom figure with personalized name
-                fig_title = f"VST Splines - {image_name}"
+                fig_title = f"VST Splines - {image_layer.name}"
                 fig = plt.figure(num=fig_title, figsize=(8, 4))
                 fig.clf()  # Clear figure if exists
 
