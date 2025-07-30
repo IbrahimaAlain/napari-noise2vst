@@ -14,6 +14,7 @@ import numpy as np
 import traceback
 import csv
 import re
+import textwrap
 import matplotlib.pyplot as plt
 import napari
 from pathlib import Path
@@ -155,7 +156,7 @@ class Noise2VSTWidget(Container):
 
     def wrap_status_text(self, text: str, max_length: int = 40) -> str:
         """
-        Wrap the status text to a maximum length per line for better display.
+        Wrap the status text to a maximum length per line without removing characters.
 
         Args:
             text: The string to wrap.
@@ -164,20 +165,7 @@ class Noise2VSTWidget(Container):
         Returns:
             Wrapped text with newlines inserted.
         """
-        words = re.split(r"[ /\\]+", text)
-        lines = []
-        current_line = ""
-
-        for word in words:
-            if len(current_line) + len(word) + 1 <= max_length:
-                current_line += (" " if current_line else "") + word
-            else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
-
-        return "\n".join(lines)
+        return "\n".join(textwrap.wrap(text, width=max_length))
     
     def sync_input_image_with_selection(self):
         """
@@ -414,18 +402,16 @@ class Noise2VSTWidget(Container):
         The figure is customized and saved as a PNG named after the image.
         """
         try:
-            # Ensure an image is selected
             image_layer = self.image_input.value
             if image_layer is None:
                 self.update_status("No image selected for spline plotting.")
                 return
 
-            image_name = image_layer.name
+            base_name = image_layer.name
+            if base_name.endswith("_denoised"):
+                base_name = base_name.removesuffix("_denoised")
 
-            # Sécuriser le nom pour les fichiers
-            safe_name = re.sub(r'[^\w._-]', '_', image_name)
-
-            # Construct spline weights path based on sanitized image name
+            safe_name = re.sub(r"[^\w.-]", "_", base_name)
             spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
             if not spline_path.exists():
                 self.update_status(f"Spline weights file does not exist for image '{image_name}'.")
@@ -488,8 +474,11 @@ class Noise2VSTWidget(Container):
         if not image_layer:
             self._error("No image selected.")
             return
-
-        safe_name = re.sub(r"[^\w.-]", "_", image_layer.name)
+        
+        base_name = image_layer.name
+        if base_name.endswith("_denoised"):
+            base_name = base_name.removesuffix("_denoised")
+        safe_name = re.sub(r"[^\w.-]", "_", base_name)
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
 
         if not spline_path.exists():
@@ -499,7 +488,7 @@ class Noise2VSTWidget(Container):
         try:
             weights = torch.load(spline_path, map_location=self.device)
             theta_in = weights.get("spline1.theta")
-            theta_out = weights.get("spline2.theta")  # Might be None
+            theta_out = weights.get("spline2.theta")
 
             if theta_in is None:
                 self._error("spline1.theta not found in weights.")
