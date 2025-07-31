@@ -401,16 +401,10 @@ class Noise2VSTWidget(Container):
 
         # Force remove and re-add the layer to ensure proper update
         if denoised_name in self.viewer.layers:
-            self.viewer.layers.remove(denoised_name)
+            self.viewer.layers[denoised_name].data = output
 
-        self.viewer.add_image(
-            output,
-            name=denoised_name,
-            rgb=rgb_flag,
-            colormap=colormap,
-            contrast_limits=contrast_limits,
-            gamma=gamma
-        )
+        else:
+            self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag, colormap=colormap, contrast_limits=contrast_limits, gamma=gamma)
 
         self.update_status("Denoising complete.")
 
