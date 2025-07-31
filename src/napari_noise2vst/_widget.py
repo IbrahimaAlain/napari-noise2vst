@@ -396,9 +396,9 @@ class Noise2VSTWidget(Container):
         else:
             self.viewer.add_image(output, name=denoised_name,                      
                                   rgb=rgb_flag,
-                                  colormap = image_layer.colormap.name,
-                                  contrast_limits = image_layer.contrast_limits,
-                                  gamma = image_layer.gamma)
+                                  colormap = colormap,
+                                  contrast_limits = contrast_limits,
+                                  gamma = gamma)
 
         self.update_status("Denoising complete.")
 
