@@ -386,12 +386,19 @@ class Noise2VSTWidget(Container):
 
         # Compose new layer name based on input image name
         denoised_name = f"{image_name}_denoised"
+        colormap = image_layer.colormap.name
+        contrast_limits = image_layer.contrast_limits
+        gamma = image_layer.gamma
 
         # Update existing layer or add a new one
         if denoised_name in self.viewer.layers:
             self.viewer.layers[denoised_name].data = output
         else:
-            self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag)
+            self.viewer.add_image(output, name=denoised_name,                      
+                                  rgb=rgb_flag,
+                                  colormap = image_layer.colormap.name,
+                                  contrast_limits = image_layer.contrast_limits,
+                                  gamma = image_layer.gamma)
 
         self.update_status("Denoising complete.")
 

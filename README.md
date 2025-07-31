@@ -27,11 +27,18 @@ https://napari.org/stable/plugins/index.html
 
 ## Usage
 
-To begin, launch napari, then go to the top menu:
-File → Open File...
+After installation, you can launch the **Noise2VST Denoising** plugin directly from the napari interface.
+In the napari top menu, go to:
+
+**`Plugins > Noise2VST Denoising (Denoising Noise2VST)`**
+
+![image_0.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_0.png)
+
+Open your image by clicking:
+**`File → Open File(s)...`**
 Select the noisy image (e.g., .tif, .png, etc.) that you want to denoise. The image will appear in the napari viewer.
 
-![img_1.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_1.png)
+![image_1.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_1.png)
 
 Once the image is loaded, scroll to the plugin panel on the right.
 Set the number of training iterations using the slider (e.g., 2000).
@@ -39,33 +46,33 @@ Then click the Fit button to train the denoising model on the image.
 
 The region shown here highlights the relevant settings and the training button.
 
-![img_2.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_2.png)
-![img_3.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_3.png)
+![image_2.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_2.png)
+![image_3.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_3.png)
 
 A progress bar appears, indicating the training status in real time.
 You can follow the advancement of model fitting visually.
 
-![img_4.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_4.png)
+![image_4.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_4.png)
 
 Once training is complete, the plugin automatically stores the model weights.
-Click the Run Denoise button to generate the denoised version of the input image.
+Click the Run Denoising button to generate the denoised version of the input image.
 
-![img_5.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_5.png)
+![image_5.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_5.png)
 
 The denoised image appears as a new layer in the napari viewer, alongside the original one.
 You can toggle visibility, adjust contrast, and compare both layers interactively.
 
-![img_6.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_6.png)
+![image_6.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_6.png)
 
-Click the Visualize SVT button to display the spline transformation (VST) learned during training.
+Click the Visualize VST button to display the spline transformation (VST) learned during training.
 A matplotlib window pops up with a plot showing the input-output relationship.
 
-![img_7.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_7.png)
+![image_7.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_7.png)
 
 To save the spline transformation values, click the Save Spline Knots button.
 A dialog window opens to let you choose where to store the CSV file containing the knots
 
-![img_8.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/img_8.png)
+![image_8.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_8.png)
 
 
 ## Installation
