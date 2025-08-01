@@ -387,7 +387,7 @@ class Noise2VSTWidget(Container):
         # Compose new layer name based on input image name
         denoised_name = f"{image_name}_denoised"
         colormap = getattr(image_layer.colormap, "name", image_layer.colormap)
-        contrast_limits = image_layer.contrast_limits or (0, 1)
+        contrast_limits = (float(output.min()), float(output.max()))
         gamma = image_layer.gamma or 1.0
 
         # Debug info
@@ -399,11 +399,11 @@ class Noise2VSTWidget(Container):
         print("gamma:", gamma)
         print("Output min/max:", output.min(), output.max(), "Shape:", output.shape)
 
-        # Force remove and re-add the layer to ensure proper update
         if denoised_name in self.viewer.layers:
             self.viewer.layers[denoised_name].data = output
 
         else:
+
             self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag, colormap=colormap, contrast_limits=contrast_limits, gamma=gamma)
 
         self.update_status("Denoising complete.")
