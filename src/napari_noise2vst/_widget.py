@@ -481,7 +481,7 @@ class Noise2VSTWidget(Container):
 
     
     def theta2y(self, theta):
-        if not self.is_strictly_increasing:
+        if not Noise2VST().is_strictly_increasing:
             return theta
         theta0, theta1 = torch.split(theta, [1, self.nb_knots-1], dim=0)
         return torch.cumsum(torch.cat((theta0, theta1.exp() + self.eps), dim=0), dim=0)
