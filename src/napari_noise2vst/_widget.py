@@ -504,10 +504,10 @@ class Noise2VSTWidget(Container):
             # Prepare rows depending on presence of spline2
             if theta_out is not None:
                 theta_out = theta_out.cpu().numpy()
-                header = ["x", "theta_in", "theta_out"]
+                header = ["x", "y", "theta_out"]
                 rows = zip(x, theta_in, theta_out)
             else:
-                header = ["x", "theta_in"]
+                header = ["x", "y"]
                 rows = zip(x, theta_in)
 
             path, _ = QFileDialog.getSaveFileName(
