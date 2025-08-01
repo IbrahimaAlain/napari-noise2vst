@@ -49,7 +49,7 @@ To install napari:
 pip install "napari[all]"
 ```
 
-To install latest development version :
+To install latest development version:
 
 ```
 pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
@@ -100,7 +100,7 @@ A matplotlib window pops up with a plot showing the input-output relationship.
 ![image_7.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_7.png)
 
 To save the spline transformation values, click the Save Spline Knots button.
-A dialog window opens to let you choose where to store the CSV file containing the knots
+A dialog window opens to let you choose where to store the CSV file containing the knots.
 
 ![image_8.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_8.png)
 

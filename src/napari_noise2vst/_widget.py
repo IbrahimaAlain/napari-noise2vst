@@ -194,28 +194,38 @@ class Noise2VSTWidget(Container):
             return None
         return img_as_float(img_layer.data)
 
-    def load_models(self, image: torch.Tensor):
+    def load_ffdnet_model(self, image: torch.Tensor):
         """
-        Load pre-trained FFDNet and DRUNet models dynamically based on image channels.
+        Load FFDNet model based on image color channels.
 
         Args:
             image: Input image tensor (batch x channels x height x width).
 
         Returns:
-            Tuple (ffdnet_model, drunet_model) both in eval mode on the selected device.
+            FFDNet model in eval mode on the selected device.
         """
         is_color = image.shape[1] == 3
-
         ffdnet_path = WEIGHTS_DIR / ("ffdnet_color.pth" if is_color else "ffdnet_gray.pth")
-        drunet_path = WEIGHTS_DIR / ("drunet_color.pth" if is_color else "drunet_gray.pth")
-
-        ffdnet = FFDNet(color=is_color).to(self.device).eval()
-        drunet = DRUNet(color=is_color).to(self.device).eval()
-
+        ffdnet = FFDNet(color=is_color).to(self.device).requires_grad_(False)
         ffdnet.load_state_dict(torch.load(ffdnet_path, map_location=self.device), strict=True)
-        drunet.load_state_dict(torch.load(drunet_path, map_location=self.device), strict=True)
+        return ffdnet
 
-        return ffdnet, drunet
+
+    def load_drunet_model(self, image: torch.Tensor):
+        """
+        Load DRUNet model based on image color channels.
+
+        Args:
+            image: Input image tensor (batch x channels x height x width).
+
+        Returns:
+            DRUNet model in eval mode on the selected device.
+        """
+        is_color = image.shape[1] == 3
+        drunet_path = WEIGHTS_DIR / ("drunet_color.pth" if is_color else "drunet_gray.pth")
+        drunet = DRUNet(color=is_color).to(self.device).requires_grad_(False)
+        drunet.load_state_dict(torch.load(drunet_path, map_location=self.device), strict=True)
+        return drunet
 
     def train_model(self, _=None):
         """
@@ -249,7 +259,7 @@ class Noise2VSTWidget(Container):
 
         # Load FFDNet model for training
         try:
-            ffdnet, _ = self.load_models(image)
+            ffdnet = self.load_ffdnet_model(image)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -333,7 +343,7 @@ class Noise2VSTWidget(Container):
 
         # Load DRUNet model for inference
         try:
-            _, drunet = self.load_models(image)
+            drunet = self.load_drunet_model(image)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -469,6 +479,14 @@ class Noise2VSTWidget(Container):
             import traceback
             traceback.print_exc()
 
+    
+    def theta2y(self, theta):
+        if not self.is_strictly_increasing:
+            return theta
+        theta0, theta1 = torch.split(theta, [1, self.nb_knots-1], dim=0)
+        return torch.cumsum(torch.cat((theta0, theta1.exp() + self.eps), dim=0), dim=0)
+
+
 
     def export_spline_knots(self, _=None):
         """Export spline theta values (x, theta_in [, theta_out]) as CSV for the selected image."""
@@ -499,16 +517,17 @@ class Noise2VSTWidget(Container):
                 return
 
             x = np.linspace(0, 1, len(theta_in))
-            theta_in = theta_in.cpu().numpy()
+            y_in = self.theta2y(theta_in).cpu().numpy()
 
             # Prepare rows depending on presence of spline2
             if theta_out is not None:
-                theta_out = theta_out.cpu().numpy()
-                header = ["x", "y", "theta_out"]
-                rows = zip(x, theta_in, theta_out)
+                y_out = self.theta2y(theta_out).cpu().numpy()
+                header = ["x", "y", "y_out"]
+                rows = zip(x, y_in, y_out)
             else:
                 header = ["x", "y"]
-                rows = zip(x, theta_in)
+                rows = zip(x, y_in)
+
 
             path, _ = QFileDialog.getSaveFileName(
                 caption="Export Spline Knots",
