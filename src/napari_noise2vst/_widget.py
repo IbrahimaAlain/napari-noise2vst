@@ -37,7 +37,7 @@ if str(repo_path) not in sys.path:
     sys.path.insert(0, str(repo_path))
 
 # Import models and utilities from noise2vst
-from noise2vst.models.noise2vst import Noise2VST
+from noise2vst.models.noise2vst import Noise2VST, Spline
 from noise2vst.models.ffdnet import FFDNet
 from noise2vst.models.drunet import DRUNet
 from noise2vst.utilities.utilities import f_GAT, f_GAT_inv
@@ -481,7 +481,7 @@ class Noise2VSTWidget(Container):
 
     
     def theta2y(self, theta):
-        if not Noise2VST().is_strictly_increasing:
+        if not Spline().is_strictly_increasing:
             return theta
         theta0, theta1 = torch.split(theta, [1, self.nb_knots-1], dim=0)
         return torch.cumsum(torch.cat((theta0, theta1.exp() + self.eps), dim=0), dim=0)
