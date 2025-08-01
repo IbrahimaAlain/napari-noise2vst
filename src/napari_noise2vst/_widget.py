@@ -483,8 +483,8 @@ class Noise2VSTWidget(Container):
     def theta2y(self, theta):
         if not Spline().is_strictly_increasing:
             return theta
-        theta0, theta1 = torch.split(theta, [1, self.nb_knots-1], dim=0)
-        return torch.cumsum(torch.cat((theta0, theta1.exp() + self.eps), dim=0), dim=0)
+        theta0, theta1 = torch.split(theta, [1, Spline().nb_knots-1], dim=0)
+        return torch.cumsum(torch.cat((theta0, theta1.exp() + Spline().eps), dim=0), dim=0)
 
 
 
