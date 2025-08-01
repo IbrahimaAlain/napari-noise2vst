@@ -140,11 +140,11 @@ class Noise2VSTWidget(Container):
 
     def _info(self, msg: str):
         print(f"[INFO] {msg}")
-        self.status.value = f"Status: {msg}"
+        self.status.value = self.wrap_status_text(f"Status: {msg}")
 
     def _error(self, msg: str):
         print(f"[ERROR] {msg}")
-        self.status.value = f"Error: {msg}"
+        self.status.value = self.wrap_status_text(f"Status: {msg}")
 
 
     def update_status(self, message: str):
