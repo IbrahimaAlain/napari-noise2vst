@@ -25,6 +25,36 @@ and review the napari docs for plugin developers:
 https://napari.org/stable/plugins/index.html
 -->
 
+## Dependencies
+
+This plugin relies on the Noise2VST framework [S. Herbreteau and M. Unser, ICCV'25].
+The source code is available at:
+https://github.com/sherbret/Noise2VST/tree/feature/make-installable
+
+- ✅ No manual installation is required — this version is installed automatically when you install the plugin.[]
+
+## Installation
+
+To install in an environment using conda:
+
+```
+conda create --name napari-env
+conda activate
+conda install pip
+```
+
+To install napari:
+
+```
+pip install "napari[all]"
+```
+
+To install latest development version :
+
+```
+pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
+```
+
 ## Usage
 
 After installation, you can launch the **Noise2VST Denoising** plugin directly from the napari interface.
@@ -75,35 +105,6 @@ A dialog window opens to let you choose where to store the CSV file containing t
 ![image_8.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_8.png)
 
 
-## Installation
-
-To install in an environment using conda:
-
-```
-conda env create -f environment.yml
-conda activate noise2vst
-```
-
-To install napari:
-
-```
-pip install "napari[all]"
-```
-
-To install latest development version :
-
-```
-pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
-```
-
-## Dependencies
-
-This plugin relies on the Noise2VST framework, developped by **Sébastien SHERBRET**.
-The exact version used is available at:
-https://github.com/sherbret/Noise2VST/tree/feature/make-installable
-
-    ✅ No manual installation is required — this version is installed automatically when you install the plugin.
-
 ## Citation
 
 ```Bibtext
@@ -114,16 +115,6 @@ https://github.com/sherbret/Noise2VST/tree/feature/make-installable
   year={2024}
 }
 ```
-
-## Contributing
-
-Contributions are very welcome. Tests can be run with [tox], please ensure
-the coverage at least stays the same before you submit a pull request.
-
-## License
-
-Distributed under the terms of the [MIT] license,
-"napari-noise2vst" is free and open source software
 
 ## Issues
 
