@@ -31,7 +31,7 @@ This plugin relies on the Noise2VST framework [S. Herbreteau and M. Unser, ICCV'
 The source code is available at:
 https://github.com/sherbret/Noise2VST/tree/feature/make-installable
 
-- ✅ No manual installation is required — this version is installed automatically when you install the plugin.[]
+- ✅ No manual installation is required — this version is installed automatically when you install the plugin.
 
 ## Installation
 
@@ -39,7 +39,7 @@ To install in an environment using conda:
 
 ```
 conda create --name napari-env
-conda activate
+conda activate napari-env
 conda install pip
 ```
 
