@@ -390,15 +390,6 @@ class Noise2VSTWidget(Container):
         contrast_limits = (float(output.min()), float(output.max()))
         gamma = image_layer.gamma or 1.0
 
-        # Debug info
-        print("Adding image with parameters:")
-        print("name:", denoised_name)
-        print("rgb:", rgb_flag)
-        print("colormap:", colormap)
-        print("contrast_limits:", contrast_limits)
-        print("gamma:", gamma)
-        print("Output min/max:", output.min(), output.max(), "Shape:", output.shape)
-
         if denoised_name in self.viewer.layers:
             self.viewer.layers[denoised_name].data = output
 
