@@ -32,7 +32,7 @@ dependencies = [
   "scikit-image",
   "napari",
   "torchvision",
-  "Noise2VST @ git+https://github.com/sherbret/Noise2VST.git@main",
+  "Noise2VST",
 ]
 
 [project.optional-dependencies]
@@ -68,8 +68,8 @@ where = ["src"]
 "*" = ["*.yaml"]
 
 [tool.setuptools_scm]
-write_to = "src/napari_noise2vst/_version.py"
-fallback_version = "0.0.1+nogit"
+version_scheme = "post-release"
+local_scheme = "no-local-version"
 
 [tool.black]
 line-length = 79
