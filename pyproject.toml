@@ -8,7 +8,7 @@ authors = [
   { name = "Ibrahima Alain Gueye", email = "gueyeibrahimaalain@gmail.com" },
 ]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 4 - Beta",
   "Framework :: napari",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
@@ -50,7 +50,7 @@ napari-noise2vst = "napari_noise2vst:napari.yaml"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/IbrahimaAlain/napari-noise2vst/issues"
-"Documentation" = "https://github.com/IbrahimaAlain/napari-noise2vst#README.md"
+"Documentation" = "https://github.com/IbrahimaAlain/napari-noise2vst"
 "Source Code" = "https://github.com/IbrahimaAlain/napari-noise2vst"
 "User Support" = "https://github.com/IbrahimaAlain/napari-noise2vst/issues"
 
