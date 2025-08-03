@@ -405,7 +405,10 @@ class Noise2VSTWidget(Container):
 
         else:
 
-            self.viewer.add_image(output, name=denoised_name, rgb=rgb_flag, colormap=colormap, contrast_limits=contrast_limits, gamma=gamma)
+            self.viewer.add_image(output, name=denoised_name,
+                                  rgb=rgb_flag, colormap=colormap,
+                                  contrast_limits=contrast_limits,
+                                  gamma=gamma)
 
         self.update_status("Denoising complete.")
 
@@ -489,8 +492,10 @@ class Noise2VSTWidget(Container):
 
 
     def export_spline_knots(self, _=None):
-        """Export spline theta values (x, theta_in [, theta_out]) as CSV for the selected image."""
-        import re
+        """Export spline values (x, y - c, y - c, z) as CSV for the selected image.
+
+        If the model is in inverse mode, z corresponds to f⁻¹(y - c), otherwise z = f₂(x).
+        """
 
         image_layer = self.image_input.value
         if not image_layer:
@@ -509,6 +514,8 @@ class Noise2VSTWidget(Container):
 
         try:
             weights = torch.load(spline_path, map_location=self.device)
+            self.model.load_state_dict(weights)
+
             theta_in = weights.get("spline1.theta")
             theta_out = weights.get("spline2.theta")
 
@@ -516,17 +523,23 @@ class Noise2VSTWidget(Container):
                 self._error("spline1.theta not found in weights.")
                 return
 
-            x = np.linspace(0, 1, len(theta_in))
-            y_in = self.theta2y(theta_in).cpu().numpy()
+            y_in = self.theta2y(theta_in)
+            x = torch.linspace(0, 1, len(y_in), device=self.device)
+            c = y_in.min()
+            y_centered = y_in - c
 
-            # Prepare rows depending on presence of spline2
-            if theta_out is not None:
-                y_out = self.theta2y(theta_out).cpu().numpy()
-                header = ["x", "y", "y_out"]
-                rows = zip(x, y_in, y_out)
-            else:
-                header = ["x", "y"]
-                rows = zip(x, y_in)
+            with torch.no_grad():
+                if self.model.inverse:
+                    z = self.model.spline1(y_in, inverse=True)
+                else:
+                    z = self.model.spline2(x)
+
+            x = x.cpu().numpy()
+            y_centered = y_centered.cpu().numpy()
+            z = z.cpu().numpy()
+
+            header = ["x", "y", "y", "z"]
+            rows = zip(x, y_centered, y_centered, z)
 
 
             path, _ = QFileDialog.getSaveFileName(
