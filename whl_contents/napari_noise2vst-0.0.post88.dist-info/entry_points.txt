@@ -1,0 +1,2 @@
+[napari.manifest]
+napari-noise2vst = napari_noise2vst:napari.yaml

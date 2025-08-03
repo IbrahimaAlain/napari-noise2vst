@@ -1,0 +1,14 @@
+napari_noise2vst/__init__.py,sha256=rkWoZ1RLi4gnoxnJkwwQQ2hMGs5wooFgkjBeA4JGCVk,92
+napari_noise2vst/_version.py,sha256=T5STKg0ygj0hjtP93_PYleVOqS7Z8s9CbNVjHVOC2X0,542
+napari_noise2vst/_widget.py,sha256=adhIN9VJyuWzo6POWjvSmv6F3vOHsj_PCA8qSNab94I,20422
+napari_noise2vst/napari.yaml,sha256=5k8d8mj1E7Flk2JRJ7PwKt5J2v1lRcZ_1_KD1u7x3vA,533
+napari_noise2vst/_tests/__init__.py,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+napari_noise2vst/_tests/test_widget.py,sha256=dVb95KcExjOvP7mNg5CZAyE8Exv8xOMTmLlb33N_xd8,49
+napari_noise2vst/pretrained_weights/__init__.py,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+napari_noise2vst/pretrained_weights/download.py,sha256=ST_Ga2beVXOCg27gez2vH4HqXY3B1gcke0viwk66X5M,605
+napari_noise2vst-0.0.post88.dist-info/licenses/LICENSE,sha256=F83Ddq-uHP1htTI9ba8pPno94r_lxbQMdyUSMD5FXI0,1088
+napari_noise2vst-0.0.post88.dist-info/METADATA,sha256=XiwWT6kpKtZhFRv6eAyIzM2l-CqX89FPSRvNq39Ag34,8929
+napari_noise2vst-0.0.post88.dist-info/WHEEL,sha256=_zCd3N1l69ArxyTb8rzEoP9TpbYXkqRFSNOD5OuxnTs,91
+napari_noise2vst-0.0.post88.dist-info/entry_points.txt,sha256=npcwtIqqiTGrH5YD1tf0zEjIwB3xIOfxO68y2LbY8UY,66
+napari_noise2vst-0.0.post88.dist-info/top_level.txt,sha256=of3qf4gT2AX4bjSKUUTxLunnvTz7x1pfFMa1uA_wXJs,17
+napari_noise2vst-0.0.post88.dist-info/RECORD,,

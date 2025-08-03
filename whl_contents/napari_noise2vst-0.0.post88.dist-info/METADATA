@@ -1,3 +1,70 @@
+Metadata-Version: 2.4
+Name: napari-noise2vst
+Version: 0.0.post88
+Summary: A plugin for denoising microscopy images using Noise2VST
+Author-email: Ibrahima Alain Gueye <gueyeibrahimaalain@gmail.com>
+License: 
+        The MIT License (MIT)
+        
+        Copyright (c) 2025 Ibrahima Alain Gueye
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in
+        all copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+        THE SOFTWARE.
+        
+Project-URL: Bug Tracker, https://github.com/IbrahimaAlain/napari-noise2vst/issues
+Project-URL: Documentation, https://github.com/IbrahimaAlain/napari-noise2vst
+Project-URL: Source Code, https://github.com/IbrahimaAlain/napari-noise2vst
+Project-URL: User Support, https://github.com/IbrahimaAlain/napari-noise2vst/issues
+Classifier: Development Status :: 4 - Beta
+Classifier: Framework :: napari
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Scientific/Engineering :: Image Processing
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: torch
+Requires-Dist: magicgui
+Requires-Dist: qtpy
+Requires-Dist: scikit-image
+Requires-Dist: napari
+Requires-Dist: torchvision
+Requires-Dist: Noise2VST
+Provides-Extra: all
+Requires-Dist: napari[all]; extra == "all"
+Provides-Extra: testing
+Requires-Dist: tox; extra == "testing"
+Requires-Dist: pytest; extra == "testing"
+Requires-Dist: pytest-cov; extra == "testing"
+Requires-Dist: pytest-qt; extra == "testing"
+Requires-Dist: napari[qt]; extra == "testing"
+Dynamic: license-file
+
 # napari-noise2vst
 
 [![License MIT](https://img.shields.io/pypi/l/napari-noise2vst.svg?color=green)](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/LICENSE)
@@ -43,19 +110,7 @@ conda activate napari-env
 conda install pip
 ```
 
-You can install `napari-noise2vst` via [pip]:
-
-```
-pip install napari-noise2vst
-```
-
-If napari is not already installed, you can install `napari-noise2vst` with napari and Qt via:
-
-```
-pip install "napari-noise2vst[all]"
-```
-
-If you prefer installing napari separately:
+To install napari:
 
 ```
 pip install "napari[all]"

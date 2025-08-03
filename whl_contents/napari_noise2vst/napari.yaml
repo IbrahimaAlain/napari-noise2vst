@@ -1,0 +1,15 @@
+name: napari-noise2vst
+display_name: Denoising Noise2VST
+# use 'hidden' to remove plugin from napari hub search results
+visibility: public
+# see https://napari.org/stable/plugins/technical_references/manifest.html#fields for valid categories
+# categories: []
+contributions:
+  commands:
+    - id: napari-noise2vst.make_noise2vst_widget
+      python_name: napari_noise2vst:Noise2VSTWidget
+      title: Noise2VST Denoising Widget
+  widgets:
+    - command: napari-noise2vst.make_noise2vst_widget
+      display_name: Noise2VST Denoising
+
