@@ -29,8 +29,7 @@ https://napari.org/stable/plugins/index.html
 
 This plugin relies on the Noise2VST framework [S. Herbreteau and M. Unser, ICCV'25].
 The source code is available at:
-https://github.com/sherbret/Noise2VST/tree/feature/make-installable
-
+https://github.com/sherbret/Noise2VST
 - ✅ No manual installation is required — this version is installed automatically when you install the plugin.
 
 ## Installation
@@ -119,7 +118,7 @@ A dialog window opens to let you choose where to store the CSV file containing t
 
 ## Citation
 
-```Bibtext
+```BibTex
 @article{herbreteau2024noise2vst,
   title={Self-Calibrated Variance-Stabilizing Transformations for Real-World Image Denoising},
   author={Herbreteau, S{\'e}bastien and Unser, Michael},

@@ -538,7 +538,7 @@ class Noise2VSTWidget(Container):
             y_centered = y_centered.cpu().numpy()
             z = z.cpu().numpy()
 
-            header = ["x", "y", "y", "z"]
+            header = ["x", "y", "x_inv", "y_inv"]
             rows = zip(x, y_centered, y_centered, z)
 
 
