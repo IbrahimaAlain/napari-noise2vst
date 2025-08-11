@@ -20,7 +20,7 @@ import napari
 from pathlib import Path
 from skimage.util import img_as_float
 from typing import TYPE_CHECKING
-from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar
+from magicgui.widgets import Container, create_widget, PushButton, Label, Slider, ProgressBar, ComboBox
 from qtpy.QtWidgets import QFileDialog
 
 if TYPE_CHECKING:
@@ -81,12 +81,20 @@ class Noise2VSTWidget(Container):
             max=5000,
             step=100,
         )
+        self.gaussian_train_selector = ComboBox(
+            label="Gaussian denoiser (training)",
+            choices=["FFDNet", "DRUNet"],
+            value="FFDNet"
+        )
+
+
         self.train_button = PushButton(label="Fit the VST model")
         self.progress_bar = ProgressBar(min=0, max=100, label="Progress", visible=False)
 
         # Container for training step
         self.step1_container = Container(widgets=[
             self.step1_label,
+            self.gaussian_train_selector,
             self.iter_slider,
             self.train_button,
             self.progress_bar,
@@ -94,6 +102,11 @@ class Noise2VSTWidget(Container):
 
         # Step 2: Prediction and evaluation controls
         self.step2_label = Label(value="STEP 2: PREDICT & EVALUATE")
+        self.gaussian_eval_selector = ComboBox(
+            label="Gaussian denoiser (evaluation)",
+            choices=["FFDNet", "DRUNet"],
+            value="DRUNet"
+        )
         self.eval_button = PushButton(label="Run Denoising")
         self.run_denoise_progress = ProgressBar(min=0, max=100, visible=False)
         self.plot_spline_button = PushButton(label="Visualize VST")
@@ -102,6 +115,7 @@ class Noise2VSTWidget(Container):
         # Container for evaluation step (hidden until training completes)
         self.step2_container = Container(widgets=[
             self.step2_label,
+            self.gaussian_eval_selector,
             self.eval_button,
             self.run_denoise_progress,
             self.plot_spline_button,
@@ -193,40 +207,20 @@ class Noise2VSTWidget(Container):
             self.update_status("No image selected.")
             return None
         return img_as_float(img_layer.data)
-
-    def load_ffdnet_model(self, image: torch.Tensor):
-        """
-        Load FFDNet model based on image color channels.
-
-        Args:
-            image: Input image tensor (batch x channels x height x width).
-
-        Returns:
-            FFDNet model in eval mode on the selected device.
-        """
+    
+    def load_gaussian_model(self, model_name, image: torch.Tensor):
         is_color = image.shape[1] == 3
-        ffdnet_path = WEIGHTS_DIR / ("ffdnet_color.pth" if is_color else "ffdnet_gray.pth")
-        ffdnet = FFDNet(color=is_color).to(self.device).requires_grad_(False)
-        ffdnet.load_state_dict(torch.load(ffdnet_path, map_location=self.device), strict=True)
-        return ffdnet
+        if model_name == "FFDNet":
+            model = FFDNet(color=True).to(self.device).eval()
+            path = WEIGHTS_DIR / ("ffdnet_color.pth" if is_color else "ffdnet_gray.pth")
+        else:
+            model = DRUNet(color=True).to(self.device).eval()
+            path = WEIGHTS_DIR / ("drunet_color.pth" if is_color else "drunet_gray.pth")
 
+        model.load_state_dict(torch.load(path, map_location=self.device), strict=True)
+        return model
 
-    def load_drunet_model(self, image: torch.Tensor):
-        """
-        Load DRUNet model based on image color channels.
-
-        Args:
-            image: Input image tensor (batch x channels x height x width).
-
-        Returns:
-            DRUNet model in eval mode on the selected device.
-        """
-        is_color = image.shape[1] == 3
-        drunet_path = WEIGHTS_DIR / ("drunet_color.pth" if is_color else "drunet_gray.pth")
-        drunet = DRUNet(color=is_color).to(self.device).requires_grad_(False)
-        drunet.load_state_dict(torch.load(drunet_path, map_location=self.device), strict=True)
-        return drunet
-
+    
     def train_model(self, _=None):
         """
         Train the Noise2VST model using the input image and selected number of iterations.
@@ -257,9 +251,9 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load FFDNet model for training
+        # Load gaussian model for training(FFDNet by default)
         try:
-            ffdnet = self.load_ffdnet_model(image)
+            gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -290,7 +284,7 @@ class Noise2VSTWidget(Container):
             # Train model with progress callback updating progress bar
             self.model.fit(
                 image,
-                ffdnet,
+                gaussian_model,
                 nb_iterations=nb_iter,
                 progress_callback=lambda v: setattr(self.progress_bar, "value", v)
             )
@@ -341,9 +335,9 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load DRUNet model for inference
+        # Load gaussian model for inference (DRUNet by default)
         try:
-            drunet = self.load_drunet_model(image)
+            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -371,7 +365,7 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.visible = True
             self.run_denoise_progress.value = 0
             with torch.no_grad():
-                output = self.model(image, drunet)
+                output = self.model(image, gaussian_model)
 
                 self.run_denoise_progress.value = 100
                 self.run_denoise_progress.visible = False
