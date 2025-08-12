@@ -282,6 +282,7 @@ class Noise2VSTWidget(Container):
         Train the Noise2VST model using the input image and selected number of iterations.
         Updates progress bar and status messages.
         """
+
         image_np = self._get_image_data()
         if image_np is None:
             return
@@ -295,10 +296,20 @@ class Noise2VSTWidget(Container):
         image = self.np2tensor(image_np, image_layer=image_layer)
         if image is None:
             return
-        # ** Padding pour assurer taille minimale patch_size **
-        patch_size = getattr(self.model, 'patch_size', 64)  # récupère patch_size ou 64 par défaut
+
+        # Get patch size expected by model or default to 64
+        patch_size = getattr(self.model, 'patch_size', 64)
         _, _, H, W = image.shape
 
+        # Resize image if too large to limit number of patches during training
+        max_size = 512  # Max height/width allowed, adjust based on memory constraints
+        if H > max_size or W > max_size:
+            image = F.interpolate(image, size=(min(H, max_size), min(W, max_size)),
+                                mode='bilinear', align_corners=False)
+            self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
+
+        # Pad image if smaller than patch size to avoid negative range errors in patch extraction
+        _, _, H, W = image.shape  # update after resize
         pad_h = max(0, patch_size - H)
         pad_w = max(0, patch_size - W)
 
@@ -356,13 +367,13 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-
         # Save trained spline weights with image-specific filename
         try:
             torch.save(self.model.state_dict(), spline_path)
             self.update_status(f"Weights saved to {spline_path}")
         except Exception as e:
             self.update_status(f"Failed to save weights: {e}")
+
 
     def evaluate_model(self, _=None):
         image = self._get_image_data()
@@ -382,8 +393,7 @@ class Noise2VSTWidget(Container):
         N, C, H, W = image_tensor.shape
         is_color = bool(getattr(image_layer, "rgb", False))
 
-        # Do not flatten channels; process N images with C channels each
-        # Create an empty tensor for the denoised output with the same shape
+        # Prepare output tensor with the same shape as input
         denoised_slices = torch.empty_like(image_tensor)
 
         # Download weights if needed
@@ -394,7 +404,7 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load the gaussian model for inference
+        # Load gaussian model for inference
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image_tensor)
         except Exception as e:
@@ -420,21 +430,23 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.value = 0
 
             with torch.no_grad():
-                # Loop over batch and channels
+                total_steps = N * C
+                step_count = 0
                 for n in range(N):
                     for c in range(C):
-                        input_slice = image_tensor[n:n+1, c:c+1, :, :]  # Shape (1,1,H,W)
-                        denoised_out = self.model(input_slice, gaussian_model)  # Shape (1,1,H,W)
-                        denoised_slices[n, c, :, :] = denoised_out[0, 0, :, :]
-                        # Update progress bar
-                        current_idx = n * C + c + 1
-                        total = N * C
-                        self.run_denoise_progress.value = int(current_idx / total * 100)
+                        # Extract slice with shape (1, 1, H, W)
+                        input_slice = image_tensor[n:n+1, c:c+1, :, :]
+                        # Run model inference on this slice
+                        denoised_output = self.model(input_slice, gaussian_model)
+                        # Assign denoised output to the corresponding place in output tensor
+                        denoised_slices[n, c, :, :] = denoised_output[0, 0, :, :]
+                        step_count += 1
+                        self.run_denoise_progress.value = int(step_count / total_steps * 100)
 
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
-            # Convert output tensor to numpy, preserving color info
+            # Convert output tensor to numpy, preserving RGB flag
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
 
         except Exception as e:
@@ -462,6 +474,7 @@ class Noise2VSTWidget(Container):
                                 gamma=gamma)
 
         self.update_status("Denoising complete.")
+
 
 
     def plot_spline(self, _=None):
