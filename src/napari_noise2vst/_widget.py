@@ -234,11 +234,13 @@ class Noise2VSTWidget(Container):
         elif image.ndim == 3:
             image = image.transpose(2, 0, 1)[None, :]
         elif image.ndim == 4:
-            N, C, H, W = image.shape
-            image = image.reshape(N * C, 1, H, W)
+            pass
         else:
             self.update_status(f"Unsupported image shape: {image.shape}")
             return
+        
+        N, C, H, W = image.shape
+        image = image.reshape(N * C, 1, H, W)
 
         image = torch.from_numpy(image).float().to(self.device)
  
