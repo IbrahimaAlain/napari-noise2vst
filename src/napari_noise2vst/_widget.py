@@ -67,7 +67,6 @@ class Noise2VSTWidget(Container):
         # --- GUI Widgets ---
 
         # Input image selector
-        self.input_label = Label(value="Input Image:")
         self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
         self.viewer.layers.selection.events.changed.connect(self.sync_input_image_with_selection)
 
@@ -94,8 +93,8 @@ class Noise2VSTWidget(Container):
         # Container for training step
         self.step1_container = Container(widgets=[
             self.step1_label,
-            self.gaussian_train_selector,
             self.iter_slider,
+            self.gaussian_train_selector,
             self.train_button,
             self.progress_bar,
         ])
@@ -134,7 +133,6 @@ class Noise2VSTWidget(Container):
 
         # Add all widgets to this container
         self.extend([
-            self.input_label,
             self.image_input,
             self.step1_container,
             self.step2_container,
