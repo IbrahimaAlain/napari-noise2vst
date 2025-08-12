@@ -211,10 +211,10 @@ class Noise2VSTWidget(Container):
     def load_gaussian_model(self, model_name, image: torch.Tensor):
         is_color = image.shape[1] == 3
         if model_name == "FFDNet":
-            model = FFDNet(color=True).to(self.device).eval()
+            model = FFDNet(color=is_color).to(self.device).eval()
             path = WEIGHTS_DIR / ("ffdnet_color.pth" if is_color else "ffdnet_gray.pth")
         else:
-            model = DRUNet(color=True).to(self.device).eval()
+            model = DRUNet(color=is_color).to(self.device).eval()
             path = WEIGHTS_DIR / ("drunet_color.pth" if is_color else "drunet_gray.pth")
 
         model.load_state_dict(torch.load(path, map_location=self.device), strict=True)
