@@ -407,7 +407,7 @@ class Noise2VSTWidget(Container):
 
         else:
 
-            self.viewer.add_image(output, name=denoised_name,
+            self.viewer.add_image(output_np, name=denoised_name,
                                   rgb=rgb_flag, colormap=colormap,
                                   contrast_limits=contrast_limits,
                                   gamma=gamma)
