@@ -383,11 +383,12 @@ class Noise2VSTWidget(Container):
 
             if output_np.shape[0] == 1:
                 output_np = output_np[0]
-                if output_np.shape[-1] == 1:
-                    output_np = output_np[..., 0]
+                if output_np.ndim == 2 or (output_np.ndim == 3 and output_np.shape[-1] == 1):
+                    if output_np.ndim == 3:
+                        output_np = output_np[..., 0]
                     rgb_flag = False
                 else:
-                    rgb_flag = True
+                    rgb_flag = output_np.shape[-1] in (3, 4)
             else:
                 rgb_flag = output_np.shape[-1] in (3, 4)
         except Exception as e:
@@ -398,9 +399,12 @@ class Noise2VSTWidget(Container):
 
         # Compose new layer name based on input image name
         denoised_name = f"{image_name}_denoised"
-        colormap = getattr(image_layer.colormap, "name", image_layer.colormap)
+        colormap = getattr(image_layer, "colormap", "gray")
+        if hasattr(colormap, "name"):
+            colormap = colormap.name
+
         contrast_limits = (float(output.min()), float(output.max()))
-        gamma = image_layer.gamma or 1.0
+        gamma = getattr(image_layer, "gamma", 1.0) or 1.0
 
         if denoised_name in self.viewer.layers:
             self.viewer.layers[denoised_name].data = output_np
