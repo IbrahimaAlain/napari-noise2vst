@@ -327,6 +327,8 @@ class Noise2VSTWidget(Container):
             return
 
         image = torch.from_numpy(image).float().to(self.device)
+        N, C, H, W = image.shape
+        image = image.reshape(N * C, 1, H, W)
 
         # Download weights if needed
         if download_weights is not None:
@@ -373,10 +375,10 @@ class Noise2VSTWidget(Container):
                 output = torch.cat(denoised_slices, dim =0)
                 self.run_denoise_progress.value = 100
                 self.run_denoise_progress.visible = False
-
+            
+            output = output.reshape(N, C, H, W)
             output_np = output.permute(0, 2, 3, 1).cpu().numpy()  # (N, H, W, C)
 
-        
             if output_np.shape[0] == 1:
                 output_np = output_np[0]
                 if output_np.shape[-1] == 1:
