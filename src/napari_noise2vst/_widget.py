@@ -10,6 +10,7 @@ This plugin allows training and inference of the Noise2VST model within the napa
 import os
 import sys
 import torch
+import torch.nn.functional as F
 import numpy as np
 import traceback
 import csv
@@ -93,7 +94,6 @@ class Noise2VSTWidget(Container):
 
         # Container for training step
         self.step1_container = Container(widgets=[
-            self.step0_label,
             self.step1_label,
             self.iter_slider,
             self.gaussian_train_selector,
@@ -295,6 +295,16 @@ class Noise2VSTWidget(Container):
         image = self.np2tensor(image_np, image_layer=image_layer)
         if image is None:
             return
+        # ** Padding pour assurer taille minimale patch_size **
+        patch_size = getattr(self.model, 'patch_size', 64)  # récupère patch_size ou 64 par défaut
+        _, _, H, W = image.shape
+
+        pad_h = max(0, patch_size - H)
+        pad_w = max(0, patch_size - W)
+
+        if pad_h > 0 or pad_w > 0:
+            image = F.pad(image, (0, pad_w, 0, pad_h), mode='constant', value=0)
+            self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
         # Ensure pretrained weights are downloaded before training
         if download_weights is not None:
