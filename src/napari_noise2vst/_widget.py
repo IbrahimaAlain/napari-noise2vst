@@ -380,13 +380,11 @@ class Noise2VSTWidget(Container):
             return
 
         N, C, H, W = image_tensor.shape
-
-        # Flatten channels only if grayscale or non-RGB multi-channel
         is_color = bool(getattr(image_layer, "rgb", False))
-        if not is_color:
-            image_proc = image_tensor.reshape(N * C, 1, H, W)
-        else:
-            image_proc = image_tensor
+
+        # Do not flatten channels; process N images with C channels each
+        # Create an empty tensor for the denoised output with the same shape
+        denoised_slices = torch.empty_like(image_tensor)
 
         # Download weights if needed
         if download_weights is not None:
@@ -396,9 +394,9 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load gaussian model for inference
+        # Load the gaussian model for inference
         try:
-            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image_proc)
+            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image_tensor)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -406,7 +404,7 @@ class Noise2VSTWidget(Container):
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
-        # Load spline weights if exist
+        # Load spline weights if they exist
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -421,17 +419,22 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.visible = True
             self.run_denoise_progress.value = 0
 
-            denoised_slices = torch.empty_like(image_proc)
-
             with torch.no_grad():
-                for i in range(image_proc.shape[0]):
-                    denoised_slices[i:i+1, ...] = self.model(image_proc[i:i+1, ...], gaussian_model)
-                    self.run_denoise_progress.value = int((i + 1) / image_proc.shape[0] * 100)
+                # Loop over batch and channels
+                for n in range(N):
+                    for c in range(C):
+                        input_slice = image_tensor[n:n+1, c:c+1, :, :]  # Shape (1,1,H,W)
+                        denoised_out = self.model(input_slice, gaussian_model)  # Shape (1,1,H,W)
+                        denoised_slices[n, c, :, :] = denoised_out[0, 0, :, :]
+                        # Update progress bar
+                        current_idx = n * C + c + 1
+                        total = N * C
+                        self.run_denoise_progress.value = int(current_idx / total * 100)
 
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
-            # Convert tensor output to numpy, preserving color info
+            # Convert output tensor to numpy, preserving color info
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
 
         except Exception as e:
