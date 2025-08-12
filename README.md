@@ -71,7 +71,7 @@ pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
 After installation, you can launch the **Noise2VST Denoising** plugin directly from the napari interface.
 In the napari top menu, go to:
 
-**`Plugins > Noise2VST Denoising (Denoising Noise2VST)`**
+**`Plugins > Denoising (Noise2VST)`**
 
 ![image_0.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_0.png)
 
