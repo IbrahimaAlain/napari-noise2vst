@@ -372,6 +372,8 @@ class Noise2VSTWidget(Container):
                 for i in range(image.shape[0]):
                     out = self.model(image[i:i+1, ...], gaussian_model)
                     denoised_slices.append(out.cpu())
+                    progress = int((i + 1) / image.shape[0] * 100)
+                    self.run_denoise_progress.value = progress
                 output = torch.cat(denoised_slices, dim =0)
                 self.run_denoise_progress.value = 100
                 self.run_denoise_progress.visible = False
