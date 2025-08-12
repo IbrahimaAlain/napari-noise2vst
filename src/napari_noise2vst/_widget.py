@@ -403,7 +403,7 @@ class Noise2VSTWidget(Container):
         gamma = image_layer.gamma or 1.0
 
         if denoised_name in self.viewer.layers:
-            self.viewer.layers[denoised_name].data = output
+            self.viewer.layers[denoised_name].data = output_np
 
         else:
 
