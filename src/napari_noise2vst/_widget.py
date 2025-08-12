@@ -236,13 +236,13 @@ class Noise2VSTWidget(Container):
         elif image.ndim == 3:
             image = image.transpose(2, 0, 1)[None, :]
         elif image.ndim == 4:
-            pass  # Already in batch format
+            pass
         else:
             self.update_status(f"Unsupported image shape: {image.shape}")
             return
 
         image = torch.from_numpy(image).float().to(self.device)
-
+ 
         # Ensure pretrained weights are downloaded before training
         if download_weights is not None:
             try:
@@ -251,7 +251,7 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load gaussian model for training(FFDNet by default)
+        # Load gaussian model for training (FFDNet by default)
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
         except Exception as e:
@@ -364,24 +364,27 @@ class Noise2VSTWidget(Container):
         try:
             self.run_denoise_progress.visible = True
             self.run_denoise_progress.value = 0
+            denoised_slices = []
             with torch.no_grad():
-                output = self.model(image, gaussian_model)
-
+                for i in range(image.shape[0]):
+                    out = self.model(image[i:i+1, ...], gaussian_model)
+                    denoised_slices.append(out.cpu())
+                output = torch.cat(denoised_slices, dim =0)
                 self.run_denoise_progress.value = 100
                 self.run_denoise_progress.visible = False
 
-                # Squeeze batch dimension if present
-                if output.dim() == 4 and output.shape[0] == 1:
-                    output = output.squeeze(0)
+            output_np = output.permute(0, 2, 3, 1).cpu().numpy()  # (N, H, W, C)
 
-                output = output.permute(1, 2, 0).cpu().numpy()
-
-                # Determine if output is grayscale or RGB for napari display
-                if output.shape[2] == 1:
-                    output = output[..., 0]
+        
+            if output_np.shape[0] == 1:
+                output_np = output_np[0]
+                if output_np.shape[-1] == 1:
+                    output_np = output_np[..., 0]
                     rgb_flag = False
                 else:
                     rgb_flag = True
+            else:
+                rgb_flag = output_np.shape[-1] in (3, 4)
         except Exception as e:
             self.run_denoise_progress.visible = False
             self.update_status(f"Inference failed: {e}")
