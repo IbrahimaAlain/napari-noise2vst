@@ -67,7 +67,7 @@ class Noise2VSTWidget(Container):
         # --- GUI Widgets ---
 
         # Input image selector
-        self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image")
+        self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image", label_position="top")
         self.viewer.layers.selection.events.changed.connect(self.sync_input_image_with_selection)
 
 
@@ -75,7 +75,7 @@ class Noise2VSTWidget(Container):
         self.step1_label = Label(value="STEP 1: TRAIN")
         self.iter_slider = Slider(
             label="Number of training iterations:",
-            value=2000,
+            value=1000,
             min=100,
             max=5000,
             step=100,
@@ -311,15 +311,29 @@ class Noise2VSTWidget(Container):
         Run denoising inference on the selected input image.
         Adds or updates the denoised image layer in napari viewer.
         """
+
+        # --- Get image from viewer ---
         image = self._get_image_data()
         if image is None:
             return
 
-        # Preprocess input image into tensor shape (batch, channels, height, width)
+        # --- Get image layer object ---
+        image_layer = self.image_input.value
+        if image_layer is None:
+            self.update_status("No input image selected.")
+            return
+
+        # --- Detect if true RGB color image ---
+        is_color = bool(getattr(image_layer, "rgb", False))
+
+        # --- Shape handling ---
         if image.ndim == 2:
             image = image[None, None, :, :]
         elif image.ndim == 3:
-            image = image.transpose(2, 0, 1)[None, :]
+            if is_color:
+                image = image.transpose(2, 0, 1)[None, :]
+            else:
+                image = image[:, None, :, :]
         elif image.ndim == 4:
             pass
         else:
@@ -328,9 +342,14 @@ class Noise2VSTWidget(Container):
 
         image = torch.from_numpy(image).float().to(self.device)
         N, C, H, W = image.shape
-        image = image.reshape(N * C, 1, H, W)
 
-        # Download weights if needed
+        # Flatten only if NOT a true RGB color image
+        if not is_color:
+            image_proc = image.reshape(N * C, 1, H, W)
+        else:
+            image_proc = image
+
+        # --- Download weights if needed ---
         if download_weights is not None:
             try:
                 download_weights()
@@ -338,19 +357,14 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load gaussian model for inference (DRUNet by default)
+        # --- Load Gaussian model ---
         try:
-            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image)
+            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image_proc)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
 
-        # Load spline weights specific to the selected image (if any)
-        image_layer = self.image_input.value
-        if image_layer is None:
-            self.update_status("No input image selected. Cannot load spline weights.")
-            return
-
+        # --- Load spline weights ---
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
@@ -364,40 +378,51 @@ class Noise2VSTWidget(Container):
         else:
             self.update_status(f"No spline weights found for image '{image_name}', running inference with default model.")
 
+        # --- Inference ---
         try:
             self.run_denoise_progress.visible = True
             self.run_denoise_progress.value = 0
             denoised_slices = []
+
             with torch.no_grad():
-                for i in range(image.shape[0]):
-                    out = self.model(image[i:i+1, ...], gaussian_model)
+                for i in range(image_proc.shape[0]):
+                    out = self.model(image_proc[i:i+1, ...], gaussian_model)
                     denoised_slices.append(out.cpu())
-                    progress = int((i + 1) / image.shape[0] * 100)
+                    progress = int((i + 1) / image_proc.shape[0] * 100)
                     self.run_denoise_progress.value = progress
-                output = torch.cat(denoised_slices, dim =0)
-                self.run_denoise_progress.value = 100
-                self.run_denoise_progress.visible = False
-            
-            output = output.reshape(N, C, H, W)
+
+            output = torch.cat(denoised_slices, dim=0)
+            self.run_denoise_progress.value = 100
+            self.run_denoise_progress.visible = False
+
+            # --- Reshape back to original format ---
+            if not is_color:
+                output = output.reshape(N, C, H, W)
+            # If is_color=True, output already (N, C, H, W)
+
             output_np = output.permute(0, 2, 3, 1).cpu().numpy()  # (N, H, W, C)
 
+            # Handle single image output
             if output_np.shape[0] == 1:
                 output_np = output_np[0]
-                if output_np.ndim == 2 or (output_np.ndim == 3 and output_np.shape[-1] == 1):
-                    if output_np.ndim == 3:
+                if not is_color:
+                    if output_np.ndim == 3 and output_np.shape[-1] == 1:
                         output_np = output_np[..., 0]
-                    rgb_flag = False
+                        rgb_flag = False
+                    else:
+                        rgb_flag = False
                 else:
-                    rgb_flag = output_np.shape[-1] in (3, 4)
+                    rgb_flag = True
             else:
-                rgb_flag = output_np.shape[-1] in (3, 4)
+                rgb_flag = is_color
+
         except Exception as e:
             self.run_denoise_progress.visible = False
             self.update_status(f"Inference failed: {e}")
             traceback.print_exc()
             return
 
-        # Compose new layer name based on input image name
+        # --- Layer naming ---
         denoised_name = f"{image_name}_denoised"
         colormap = getattr(image_layer, "colormap", "gray")
         if hasattr(colormap, "name"):
@@ -406,17 +431,19 @@ class Noise2VSTWidget(Container):
         contrast_limits = (float(output.min()), float(output.max()))
         gamma = getattr(image_layer, "gamma", 1.0) or 1.0
 
+        # --- Add or update layer ---
         if denoised_name in self.viewer.layers:
             self.viewer.layers[denoised_name].data = output_np
-
         else:
-
-            self.viewer.add_image(output_np, name=denoised_name,
-                                  rgb=rgb_flag, colormap=colormap,
-                                  contrast_limits=contrast_limits,
-                                  gamma=gamma)
+            self.viewer.add_image(output_np,
+                                name=denoised_name,
+                                rgb=rgb_flag,
+                                colormap=colormap,
+                                contrast_limits=contrast_limits,
+                                gamma=gamma)
 
         self.update_status("Denoising complete.")
+
 
 
     def plot_spline(self, _=None):
