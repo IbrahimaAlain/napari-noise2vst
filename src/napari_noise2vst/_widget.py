@@ -67,7 +67,7 @@ class Noise2VSTWidget(Container):
         # --- GUI Widgets ---
 
         # Input image selector
-        self.image_input = create_widget(label="Input Image", annotation="napari.layers.Image", label_position="top")
+        self.image_input = create_widget(label="Input Image:", annotation="napari.layers.Image", label_position="top")
         self.viewer.layers.selection.events.changed.connect(self.sync_input_image_with_selection)
 
 
@@ -81,7 +81,7 @@ class Noise2VSTWidget(Container):
             step=100,
         )
         self.gaussian_train_selector = ComboBox(
-            label="Gaussian denoiser (training)",
+            label="Gaussian denoiser (training):",
             choices=["FFDNet", "DRUNet"],
             value="FFDNet"
         )
@@ -102,7 +102,7 @@ class Noise2VSTWidget(Container):
         # Step 2: Prediction and evaluation controls
         self.step2_label = Label(value="STEP 2: PREDICT & EVALUATE")
         self.gaussian_eval_selector = ComboBox(
-            label="Gaussian denoiser (evaluation)",
+            label="Gaussian denoiser (evaluation):",
             choices=["FFDNet", "DRUNet"],
             value="DRUNet"
         )
