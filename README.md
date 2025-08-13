@@ -115,6 +115,15 @@ A dialog window opens to let you choose where to store the CSV file containing t
 
 ![image_8.png](https://github.com/IbrahimaAlain/napari-noise2vst/raw/main/docs/images/image_8.png)
 
+## Caveat: Limitations
+
+The noise assumptions underlying Noise2VST align with those commonly adopted in the literature. These assumptions are relatively broad and have been shown to be sufficient for a wide range of applications — in particular, fluorescence microscopy. Specifically, the noise is assumed to be:
+
+- **zero-mean**,
+
+- and **spatially independent**.
+
+⚠️ The performance of Noise2VST is not guaranteed when the noise significantly deviates from these assumptions.
 
 ## Citation
 
