@@ -220,58 +220,62 @@ class Noise2VSTWidget(Container):
         model.load_state_dict(torch.load(path, map_location=self.device), strict=True)
         return model
     
-    def np2tensor(self, image, image_layer=None):
-        """
-        Convert a NumPy array into a PyTorch tensor in (N, C, H, W) format.
-        Handles RGB, RGBA, grayscale, and multi-channel (non-RGB) data.
-        """
-        # --- Detect true RGB from Napari layer info ---
-        is_rgb = False
-        if image_layer is not None:
-            is_rgb = getattr(image_layer, "rgb", False)
-            if not is_rgb and hasattr(image_layer, "colormap"):
-                cmap = getattr(image_layer.colormap, "name", None)
-                if cmap is None and isinstance(image_layer.colormap, str):
-                    cmap = image_layer.colormap
-                is_rgb = cmap is None or cmap == ""
 
-        # --- Shape handling ---
+    def np2tensor(image: np.ndarray):
+        """
+        Convertit un numpy array en tensor PyTorch compatible FFDNet.
+        
+        - Images 1 canal → FFDNet gris
+        - Images 3 canaux → FFDNet couleur
+        - Images multi-canaux (>3) → moyenne en gris par canal
+        """
         if image.ndim == 2:
-            # Grayscale single image -> (N=1, C=1, H, W)
-            image = image[None, None, :, :]
+            # Image 2D -> ajouter batch et channel
+            tensor = torch.from_numpy(image).unsqueeze(0).unsqueeze(0).float()
+            mode = "gray"
 
         elif image.ndim == 3:
-            if is_rgb and image.shape[-1] in (3, 4):
-                # RGB or RGBA single frame
-                if image.shape[-1] == 4:
-                    image = image[..., :3]  # Drop alpha channel
-                image = image.transpose(2, 0, 1)[None, :]
+            # Shape possible: (C,H,W) ou (H,W,C)
+            if image.shape[0] in [1,3,4,5,17]:  # C,H,W
+                tensor = torch.from_numpy(image).float()
+            elif image.shape[2] in [1,3,4,5,17]:  # H,W,C
+                tensor = torch.from_numpy(image.transpose(2,0,1)).float()
             else:
-                # Multi-channel grayscale stack -> (N=C, C=1, H, W)
-                image = image[:, None, :, :]
+                raise ValueError(f"Cannot interpret shape {image.shape} as channels-first")
+
+            c = tensor.shape[0]
+
+            if c == 1:
+                mode = "gray"
+            elif c == 3:
+                mode = "color"
+            else:
+                # >3 canaux → moyenne pour gris (FFDNet ne supporte pas multi-canaux)
+                tensor = tensor.mean(dim=0, keepdim=True)
+                mode = "gray"
 
         elif image.ndim == 4:
-            if is_rgb and image.shape[-1] in (3, 4):
-                # RGB or RGBA stack
-                if image.shape[-1] == 4:
-                    image = image[..., :3]  # Drop alpha channel
-                image = image.transpose(0, 3, 1, 2)  # (N, C, H, W)
+            # Shape possible: (N,C,H,W) ou (N,H,W,C)
+            if image.shape[1] in [1,3,4,5,17]:
+                tensor = torch.from_numpy(image).float()
+            elif image.shape[3] in [1,3,4,5,17]:
+                tensor = torch.from_numpy(image.transpose(0,3,1,2)).float()
             else:
-                # Multi-channel non-RGB -> keep channels separate
-                # Shape expected: (N, C, H, W)
-                if image.shape[1] < image.shape[-1]:
-                    # Assume input is (frames, channels, H, W)
-                    pass
-                else:
-                    # Maybe shape is (frames, H, W, channels)
-                    image = image.transpose(0, 3, 1, 2)
+                raise ValueError(f"Cannot interpret shape {image.shape} as channels-first")
+            
+            c = tensor.shape[1]
+            if c == 1:
+                mode = "gray"
+            elif c == 3:
+                mode = "color"
+            else:
+                tensor = tensor.mean(dim=1, keepdim=True)
+                mode = "gray"
 
         else:
-            self.update_status(f"Unsupported image shape: {image.shape}")
-            return None
+            raise ValueError(f"Unsupported image ndim: {image.ndim}")
 
-        return torch.from_numpy(image).float().to(self.device)
-
+        return tensor, mode
 
 
     def tensor2np(self, tensor, is_rgb=False):
