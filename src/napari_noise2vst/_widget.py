@@ -347,7 +347,8 @@ class Noise2VSTWidget(Container):
                     
                     # Débruitage après entraînement
                     with torch.no_grad():
-                        denoised_slice = self.model(input_slice)
+                        denoised_slice = self.model(input_slice, denoiser=gaussian_model)
+
                     
                     denoised[n, c, :, :] = denoised_slice[0, 0, :, :]
             image = denoised  # Remplacer l'image par la version débruitée
