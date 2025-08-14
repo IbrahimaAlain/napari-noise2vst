@@ -223,10 +223,9 @@ class Noise2VSTWidget(Container):
     def np2tensor(self, image, image_layer=None):
         """
         Convert a NumPy array into a PyTorch tensor in (N, C, H, W) format.
-        Handles grayscale, RGB, and multi-channel >3 cases.
-        If image_layer is provided, uses Napari metadata to detect RGB.
+        Handles RGB, RGBA, grayscale, and multi-channel (non-RGB) data.
         """
-        # Detect RGB from napari layer metadata
+        # --- Detect true RGB from Napari layer info ---
         is_rgb = False
         if image_layer is not None:
             is_rgb = getattr(image_layer, "rgb", False)
@@ -236,41 +235,43 @@ class Noise2VSTWidget(Container):
                     cmap = image_layer.colormap
                 is_rgb = cmap is None or cmap == ""
 
-        # Handle grayscale (H, W)
+        # --- Shape handling ---
         if image.ndim == 2:
-            image = image[None, None, :, :]  # N=1, C=1
+            # Grayscale single image -> (N=1, C=1, H, W)
+            image = image[None, None, :, :]
 
-        # Handle 3D arrays
         elif image.ndim == 3:
             if is_rgb and image.shape[-1] in (3, 4):
-                # True RGB(A): convert to (N=1, C, H, W)
-                image = image[..., :3].transpose(2, 0, 1)[None, :]
-            elif image.shape[0] in (1, 3):
-                # (C, H, W) format already
-                image = image[None, :]
+                # RGB or RGBA single frame
+                if image.shape[-1] == 4:
+                    image = image[..., :3]  # Drop alpha channel
+                image = image.transpose(2, 0, 1)[None, :]
             else:
-                # Assume (N, H, W)
+                # Multi-channel grayscale stack -> (N=C, C=1, H, W)
                 image = image[:, None, :, :]
 
-        # Handle 4D arrays
         elif image.ndim == 4:
             if is_rgb and image.shape[-1] in (3, 4):
-                # True RGB stack: (N, H, W, C) -> (N, C, H, W)
-                image = image[..., :3].transpose(0, 3, 1, 2)
+                # RGB or RGBA stack
+                if image.shape[-1] == 4:
+                    image = image[..., :3]  # Drop alpha channel
+                image = image.transpose(0, 3, 1, 2)  # (N, C, H, W)
             else:
-                # If multi-channel > 3 → fallback to grayscale average
-                if image.shape[1] > 3:
-                    self.update_status(
-                        f"Warning: input has {image.shape[1]} channels, averaging to grayscale."
-                    )
-                    image = image.mean(axis=1, keepdims=True)
-                # Already in (N, C, H, W)
-                # No change if C=1 or C=3
+                # Multi-channel non-RGB -> keep channels separate
+                # Shape expected: (N, C, H, W)
+                if image.shape[1] < image.shape[-1]:
+                    # Assume input is (frames, channels, H, W)
+                    pass
+                else:
+                    # Maybe shape is (frames, H, W, channels)
+                    image = image.transpose(0, 3, 1, 2)
+
         else:
             self.update_status(f"Unsupported image shape: {image.shape}")
             return None
 
         return torch.from_numpy(image).float().to(self.device)
+
 
 
     def tensor2np(self, tensor, is_rgb=False):
