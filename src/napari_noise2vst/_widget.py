@@ -261,7 +261,7 @@ class Noise2VSTWidget(Container):
         if np_img.shape[0] == 1:
             np_img = np_img[0]
         return np_img
-
+    
     def train_model(self, _=None):
         image_np = self._get_image_data()
         print(f"[DEBUG] Raw numpy image shape: {None if image_np is None else image_np.shape}")
@@ -274,6 +274,7 @@ class Noise2VSTWidget(Container):
             return
 
         tensor, mode = self.np2tensor(image_np, image_layer=image_layer)
+        is_color = getattr(image_layer, "rgb", mode == "color")
         image = tensor
         print(f"[DEBUG] After np2tensor: {None if image is None else image.shape}")
         if image is None:
@@ -291,7 +292,6 @@ class Noise2VSTWidget(Container):
             self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
             _, _, H, W = image.shape
 
-        # Padding si nécessaire
         pad_h = max(0, patch_size - H)
         pad_w = max(0, patch_size - W)
         print(f"[DEBUG] Padding values: pad_h={pad_h}, pad_w={pad_w}")
@@ -300,11 +300,11 @@ class Noise2VSTWidget(Container):
             print(f"[DEBUG] After padding: {image.shape}")
             self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
-        # Flatten N,C pour traiter chaque canal comme image indépendante
-        image = image.view(N * C, 1, H, W)
-        print(f"[DEBUG] Flattened image shape for independent training: {image.shape}")
+        # Seulement aplatir si ce n’est pas une image couleur RGB
+        if not is_color:
+            image = image.view(N * C, 1, H, W)
+            print(f"[DEBUG] Flattened image shape for independent training: {image.shape}")
 
-        # Chargement du modèle Gaussian si nécessaire
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
         except Exception as e:
@@ -314,7 +314,6 @@ class Noise2VSTWidget(Container):
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
-        # Charger les poids spline existants
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -322,7 +321,6 @@ class Noise2VSTWidget(Container):
             except Exception as e:
                 self.update_status(f"Failed to load spline weights: {e}")
 
-        # Entraînement
         try:
             self.progress_bar.visible = True
             self.progress_bar.value = 0
@@ -347,7 +345,6 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-        # Sauvegarde des poids
         try:
             torch.save(self.model.state_dict(), spline_path)
             self.update_status(f"Weights saved to {spline_path}")
@@ -367,10 +364,15 @@ class Noise2VSTWidget(Container):
 
         image_tensor, mode = self.np2tensor(image, image_layer=image_layer)
         N, C, H, W = image_tensor.shape
-        is_color = (mode == "color")
+        is_color = getattr(image_layer, "rgb", mode == "color")
 
-        # Flatten channels to treat each channel as independent image
-        flat_tensor = image_tensor.view(N * C, 1, H, W)
+        if is_color:
+            # On garde les 3 canaux ensemble
+            flat_tensor = image_tensor
+        else:
+            # On traite canal par canal
+            flat_tensor = image_tensor.view(N * C, 1, H, W)
+
         denoised_flat = torch.empty_like(flat_tensor)
 
         if download_weights is not None:
@@ -405,19 +407,28 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.value = 0
 
             with torch.no_grad():
-                total_steps = flat_tensor.shape[0]
-                for idx in range(total_steps):
-                    input_slice = flat_tensor[idx:idx+1, :, :, :]
-                    # Pass the gaussian_model (or denoiser) explicitly
-                    denoised_output = self.model(input_slice, gaussian_model)
-                    denoised_flat[idx] = denoised_output[0, 0, :, :]
-                    self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
+                if is_color:
+                    total_steps = N
+                    for idx in range(total_steps):
+                        denoised_output = self.model(flat_tensor[idx:idx+1], gaussian_model)
+                        denoised_flat[idx] = denoised_output[0]
+                        self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
+                else:
+                    total_steps = flat_tensor.shape[0]
+                    for idx in range(total_steps):
+                        input_slice = flat_tensor[idx:idx+1]
+                        denoised_output = self.model(input_slice, gaussian_model)
+                        denoised_flat[idx] = denoised_output[0, 0, :, :]
+                        self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
 
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
-            # Reshape back to (N, C, H, W)
-            denoised_slices = denoised_flat.view(N, C, H, W)
+            if is_color:
+                denoised_slices = denoised_flat
+            else:
+                denoised_slices = denoised_flat.view(N, C, H, W)
+
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
 
         except Exception as e:
@@ -445,6 +456,7 @@ class Noise2VSTWidget(Container):
                                 gamma=gamma)
 
         self.update_status("Denoising complete.")
+
 
 
 
