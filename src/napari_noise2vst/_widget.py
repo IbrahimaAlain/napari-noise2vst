@@ -369,7 +369,9 @@ class Noise2VSTWidget(Container):
         N, C, H, W = image_tensor.shape
         is_color = (mode == "color")
 
-        denoised_slices = torch.empty_like(image_tensor)
+        # Flatten channels to treat each channel as independent image
+        flat_tensor = image_tensor.view(N * C, 1, H, W)
+        denoised_flat = torch.empty_like(flat_tensor)
 
         if download_weights is not None:
             try:
@@ -380,7 +382,7 @@ class Noise2VSTWidget(Container):
 
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value,
-                                                      image_tensor)
+                                                    image_tensor)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -403,19 +405,19 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.value = 0
 
             with torch.no_grad():
-                total_steps = N * C
-                step_count = 0
-                for n in range(N):
-                    for c in range(C):
-                        input_slice = image_tensor[n:n+1, c:c+1, :, :]
-                        denoised_output = self.model(input_slice, gaussian_model)
-                        denoised_slices[n, c, :, :] = denoised_output[0, 0, :, :]
-                        step_count += 1
-                        self.run_denoise_progress.value = int(step_count / total_steps * 100)
+                total_steps = flat_tensor.shape[0]
+                for idx in range(total_steps):
+                    input_slice = flat_tensor[idx:idx+1, :, :, :]
+                    # Pass the gaussian_model (or denoiser) explicitly
+                    denoised_output = self.model(input_slice, gaussian_model)
+                    denoised_flat[idx] = denoised_output[0, 0, :, :]
+                    self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
 
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
+            # Reshape back to (N, C, H, W)
+            denoised_slices = denoised_flat.view(N, C, H, W)
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
 
         except Exception as e:
@@ -436,11 +438,11 @@ class Noise2VSTWidget(Container):
             self.viewer.layers[denoised_name].data = output_np
         else:
             self.viewer.add_image(output_np,
-                                  name=denoised_name,
-                                  rgb=is_color,
-                                  colormap=colormap,
-                                  contrast_limits=contrast_limits,
-                                  gamma=gamma)
+                                name=denoised_name,
+                                rgb=is_color,
+                                colormap=colormap,
+                                contrast_limits=contrast_limits,
+                                gamma=gamma)
 
         self.update_status("Denoising complete.")
 
