@@ -336,14 +336,22 @@ class Noise2VSTWidget(Container):
             for n in range(N):
                 for c in range(C):
                     input_slice = image[n:n+1, c:c+1, :, :]  # Shape (1,1,H,W)
-                    denoised_slice = self.model.fit(
+                    
+                    # Entraînement du modèle sur ce canal
+                    self.model.fit(
                         input_slice,
                         gaussian_model,
                         nb_iterations=nb_iter,
                         progress_callback=lambda v: setattr(self.progress_bar, "value", v)
                     )
+                    
+                    # Débruitage après entraînement
+                    with torch.no_grad():
+                        denoised_slice = self.model(input_slice)
+                    
                     denoised[n, c, :, :] = denoised_slice[0, 0, :, :]
             image = denoised  # Remplacer l'image par la version débruitée
+
 
             self.progress_bar.visible = False
             self.step2_container.visible = True
