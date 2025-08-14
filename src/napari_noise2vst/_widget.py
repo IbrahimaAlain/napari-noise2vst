@@ -321,16 +321,12 @@ class Noise2VSTWidget(Container):
             self.progress_bar.value = 0
             self.update_status("Training started...")
             nb_iter = self.iter_slider.value
-            
-            self.f_history.clear()
-            self.theta_history.clear()
-            self.iterations.clear()
+
             self.model.fit(
                 image,
                 gaussian_model,
                 nb_iterations=nb_iter,
-                progress_callback=lambda v: setattr(self.progress_bar, "value", v),
-                history_callback=self._update_vst_plot
+                progress_callback=lambda v: setattr(self.progress_bar, "value", v)
             )
 
             self.progress_bar.visible = False
