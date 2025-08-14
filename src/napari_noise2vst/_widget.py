@@ -280,13 +280,13 @@ class Noise2VSTWidget(Container):
             return
 
         patch_size = getattr(self.model, 'patch_size', 64)
-        _, _, H, W = image.shape
-        print(f"[DEBUG] Initial tensor size: N/A, H={H}, W={W}, Patch size={patch_size}")
+        _, C, H, W = image.shape
+        print(f"[DEBUG] Initial tensor size: N/A, C={C}, H={H}, W={W}, Patch size={patch_size}")
 
         max_size = 512
         if H > max_size or W > max_size:
             image = F.interpolate(image, size=(min(H, max_size), min(W, max_size)),
-                                  mode='bilinear', align_corners=False)
+                                mode='bilinear', align_corners=False)
             print(f"[DEBUG] After resize: {image.shape}")
             self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
 
@@ -307,8 +307,7 @@ class Noise2VSTWidget(Container):
                 return
 
         try:
-            gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value,
-                                                      image)
+            gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -331,12 +330,20 @@ class Noise2VSTWidget(Container):
             print(f"[DEBUG] Training iterations: {nb_iter}")
             print(f"[DEBUG] Shape before fit(): {image.shape}")
 
-            self.model.fit(
-                image,
-                gaussian_model,
-                nb_iterations=nb_iter,
-                progress_callback=lambda v: setattr(self.progress_bar, "value", v)
-            )
+            # --- Boucle sur chaque canal / image ---
+            N, C, H, W = image.shape
+            denoised = torch.empty_like(image)
+            for n in range(N):
+                for c in range(C):
+                    input_slice = image[n:n+1, c:c+1, :, :]  # Shape (1,1,H,W)
+                    denoised_slice = self.model.fit(
+                        input_slice,
+                        gaussian_model,
+                        nb_iterations=nb_iter,
+                        progress_callback=lambda v: setattr(self.progress_bar, "value", v)
+                    )
+                    denoised[n, c, :, :] = denoised_slice[0, 0, :, :]
+            image = denoised  # Remplacer l'image par la version débruitée
 
             self.progress_bar.visible = False
             self.step2_container.visible = True
@@ -352,6 +359,7 @@ class Noise2VSTWidget(Container):
             self.update_status(f"Weights saved to {spline_path}")
         except Exception as e:
             self.update_status(f"Failed to save weights: {e}")
+
 
     def evaluate_model(self, _=None):
         image = self._get_image_data()
