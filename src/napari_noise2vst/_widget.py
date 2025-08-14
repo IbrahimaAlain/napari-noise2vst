@@ -315,8 +315,7 @@ class Noise2VSTWidget(Container):
 
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value,
-                                                      image,
-                                                      color=(mode=="color"))
+                                                      image)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
