@@ -280,8 +280,8 @@ class Noise2VSTWidget(Container):
             return
 
         patch_size = getattr(self.model, 'patch_size', 64)
-        _, C, H, W = image.shape
-        print(f"[DEBUG] Initial tensor size: N/A, C={C}, H={H}, W={W}, Patch size={patch_size}")
+        N, C, H, W = image.shape
+        print(f"[DEBUG] Initial tensor size: N={N}, C={C}, H={H}, W={W}, Patch size={patch_size}")
 
         max_size = 512
         if H > max_size or W > max_size:
@@ -289,8 +289,9 @@ class Noise2VSTWidget(Container):
                                 mode='bilinear', align_corners=False)
             print(f"[DEBUG] After resize: {image.shape}")
             self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
+            _, _, H, W = image.shape
 
-        _, _, H, W = image.shape
+        # Padding si nécessaire
         pad_h = max(0, patch_size - H)
         pad_w = max(0, patch_size - W)
         print(f"[DEBUG] Padding values: pad_h={pad_h}, pad_w={pad_w}")
@@ -299,13 +300,11 @@ class Noise2VSTWidget(Container):
             print(f"[DEBUG] After padding: {image.shape}")
             self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
-        if download_weights is not None:
-            try:
-                download_weights()
-            except Exception as e:
-                self.update_status(f"Download failed: {e}")
-                return
+        # Flatten N,C pour traiter chaque canal comme image indépendante
+        image = image.view(N * C, 1, H, W)
+        print(f"[DEBUG] Flattened image shape for independent training: {image.shape}")
 
+        # Chargement du modèle Gaussian si nécessaire
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
         except Exception as e:
@@ -315,6 +314,7 @@ class Noise2VSTWidget(Container):
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
+        # Charger les poids spline existants
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -322,6 +322,7 @@ class Noise2VSTWidget(Container):
             except Exception as e:
                 self.update_status(f"Failed to load spline weights: {e}")
 
+        # Entraînement
         try:
             self.progress_bar.visible = True
             self.progress_bar.value = 0
@@ -330,29 +331,12 @@ class Noise2VSTWidget(Container):
             print(f"[DEBUG] Training iterations: {nb_iter}")
             print(f"[DEBUG] Shape before fit(): {image.shape}")
 
-            # --- Boucle sur chaque canal / image ---
-            N, C, H, W = image.shape
-            denoised = torch.empty_like(image)
-            for n in range(N):
-                for c in range(C):
-                    input_slice = image[n:n+1, c:c+1, :, :]  # Shape (1,1,H,W)
-                    
-                    # Entraînement du modèle sur ce canal
-                    self.model.fit(
-                        input_slice,
-                        gaussian_model,
-                        nb_iterations=nb_iter,
-                        progress_callback=lambda v: setattr(self.progress_bar, "value", v)
-                    )
-                    
-                    # Débruitage après entraînement
-                    with torch.no_grad():
-                        denoised_slice = self.model(input_slice, denoiser=gaussian_model)
-
-                    
-                    denoised[n, c, :, :] = denoised_slice[0, 0, :, :]
-            image = denoised  # Remplacer l'image par la version débruitée
-
+            self.model.fit(
+                image,
+                gaussian_model,
+                nb_iterations=nb_iter,
+                progress_callback=lambda v: setattr(self.progress_bar, "value", v)
+            )
 
             self.progress_bar.visible = False
             self.step2_container.visible = True
@@ -363,6 +347,7 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
+        # Sauvegarde des poids
         try:
             torch.save(self.model.state_dict(), spline_path)
             self.update_status(f"Weights saved to {spline_path}")
