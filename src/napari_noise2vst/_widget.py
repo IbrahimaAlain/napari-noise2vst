@@ -223,40 +223,43 @@ class Noise2VSTWidget(Container):
     def np2tensor(self, image, image_layer=None):
         """
         Convert a NumPy array into a PyTorch tensor in (N, C, H, W) format.
-        If image_layer is provided, uses Napari colormap info to detect true RGB images.
+        If image_layer is provided, uses Napari's 'rgb' attribute to detect true RGB images.
+        - RGB images: keep C=3 (no per-channel splitting).
+        - Non-RGB multi-channel: keep each channel independent.
         """
+        # Detect if this is a true RGB image from Napari
+        is_rgb = False
         if image_layer is not None:
-            is_rgb = getattr(image_layer, "rgb", False)
-            if not is_rgb and hasattr(image_layer, "colormap"):
-                cmap = getattr(image_layer.colormap, "name", None)
-                if cmap is None and isinstance(image_layer.colormap, str):
-                    cmap = image_layer.colormap
-                is_rgb = cmap is None or cmap == ""
-        else:
-            is_rgb = False
+            is_rgb = bool(getattr(image_layer, "rgb", False))
+
+        # Ensure numpy array is float32
+        image = image.astype("float32", copy=False)
 
         if image.ndim == 2:
+            # (H, W) → (1, 1, H, W)
             image = image[None, None, :, :]
 
         elif image.ndim == 3:
             if is_rgb and image.shape[-1] in (3, 4):
+                # (H, W, 3/4) → (1, 3/4, H, W)
                 image = image.transpose(2, 0, 1)[None, :]
             else:
-                image = image[:, None, :, :]
+                # (C, H, W) → (1, C, H, W)
+                image = image[None, :, :, :]
 
         elif image.ndim == 4:
             if is_rgb and image.shape[-1] in (3, 4):
+                # (N, H, W, 3/4) → (N, 3/4, H, W)
                 image = image.transpose(0, 3, 1, 2)
             else:
-                image = image.reshape(-1, 1, image.shape[1], image.shape[2])
+                # Already (N, C, H, W)
+                pass
 
         else:
             self.update_status(f"Unsupported image shape: {image.shape}")
             return None
 
         return torch.from_numpy(image).float().to(self.device)
-
-
 
     def tensor2np(self, tensor, is_rgb=False):
         """
@@ -385,7 +388,6 @@ class Noise2VSTWidget(Container):
 
     def evaluate_model(self, _=None):
         image = self._get_image_data()
-        print(f"[DEBUG] Eval - raw numpy shape: {None if image is None else image.shape}")
         if image is None:
             return
 
@@ -396,14 +398,13 @@ class Noise2VSTWidget(Container):
 
         # Convert numpy to tensor with correct shape and RGB detection
         image_tensor = self.np2tensor(image, image_layer=image_layer)
-        print(f"[DEBUG] Eval - after np2tensor: {None if image_tensor is None else image_tensor.shape}")
         if image_tensor is None:
             return
 
         N, C, H, W = image_tensor.shape
-        print(f"[DEBUG] Eval - N={N}, C={C}, H={H}, W={W}")
         is_color = bool(getattr(image_layer, "rgb", False))
 
+        # Prepare output tensor with the same shape as input
         denoised_slices = torch.empty_like(image_tensor)
 
         # Download weights if needed
@@ -424,6 +425,7 @@ class Noise2VSTWidget(Container):
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
+        # Load spline weights if they exist
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -440,14 +442,14 @@ class Noise2VSTWidget(Container):
 
             with torch.no_grad():
                 total_steps = N * C
-                print(f"[DEBUG] Eval - total steps: {total_steps}")
                 step_count = 0
                 for n in range(N):
                     for c in range(C):
-                        print(f"[DEBUG] Processing slice n={n}, c={c}, shape={image_tensor[n:n+1, c:c+1, :, :].shape}")
+                        # Extract slice with shape (1, 1, H, W)
                         input_slice = image_tensor[n:n+1, c:c+1, :, :]
+                        # Run model inference on this slice
                         denoised_output = self.model(input_slice, gaussian_model)
-                        print(f"[DEBUG] Output slice shape: {denoised_output.shape}")
+                        # Assign denoised output to the corresponding place in output tensor
                         denoised_slices[n, c, :, :] = denoised_output[0, 0, :, :]
                         step_count += 1
                         self.run_denoise_progress.value = int(step_count / total_steps * 100)
@@ -455,14 +457,34 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
+            # Convert output tensor to numpy, preserving RGB flag
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
-            print(f"[DEBUG] Final denoised output numpy shape: {output_np.shape}")
 
         except Exception as e:
             self.run_denoise_progress.visible = False
             self.update_status(f"Inference failed: {e}")
             traceback.print_exc()
             return
+
+        denoised_name = f"{image_name}_denoised"
+        colormap = getattr(image_layer, "colormap", "gray")
+        if hasattr(colormap, "name"):
+            colormap = colormap.name
+
+        contrast_limits = (float(denoised_slices.min()), float(denoised_slices.max()))
+        gamma = getattr(image_layer, "gamma", 1.0) or 1.0
+
+        if denoised_name in self.viewer.layers:
+            self.viewer.layers[denoised_name].data = output_np
+        else:
+            self.viewer.add_image(output_np,
+                                name=denoised_name,
+                                rgb=is_color,
+                                colormap=colormap,
+                                contrast_limits=contrast_limits,
+                                gamma=gamma)
+
+        self.update_status("Denoising complete.")
 
 
 
