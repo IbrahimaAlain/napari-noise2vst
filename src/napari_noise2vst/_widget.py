@@ -224,44 +224,53 @@ class Noise2VSTWidget(Container):
         """
         Convertit un numpy array en tensor torch, adapté à FFDNet.
         - Ne fusionne plus les canaux si >3.
-        - Retourne (tensor, mode) où mode = "gray" ou "color".
+        - Retourne (tensor, mode, is_rgb) où mode = "gray" ou "color" et is_rgb est un booléen.
         """
-
-        # Assure que l'image est float32
         image_np = image_np.astype(np.float32)
 
-        # Détecte le nombre de canaux et la dimension
         if image_np.ndim == 4:  # (N, C, H, W)
             n, c, h, w = image_np.shape
-            if c == 1:
-                mode = "gray"
-            else:
-                mode = "color"  # même si >3 canaux, on garde tous
         elif image_np.ndim == 3:  # (C,H,W) ou (H,W,C)
+            # Supposons (H,W,C) pour les images Napari standard
+            if image_np.shape[2] in [3, 4]:
+                image_np = np.transpose(image_np, (2, 0, 1))  # (C, H, W)
             c = image_np.shape[0]
-            if c == 1:
-                mode = "gray"
-            else:
-                mode = "color"
-            image_np = image_np[np.newaxis, ...]  # ajoute batch dimension
-        else:  # image 2D
+            image_np = image_np[np.newaxis, ...]  # ajoute batch dimension (1, C, H, W)
+        else:  # image 2D (H,W)
             image_np = image_np[np.newaxis, np.newaxis, ...]  # (1,1,H,W)
-            mode = "gray"
+            c = 1
+
+        # Détection du mode et is_rgb
+        mode = "gray" if c == 1 else "color"
+        is_rgb = getattr(image_layer, "rgb", False) if image_layer else (c == 3) # Utiliser l'info de Napari si possible
 
         tensor = torch.from_numpy(image_np)
-        return tensor, mode
+        return tensor, mode, is_rgb
+
+
+    #----------------------------------------------------------------------------------------------------------------------
 
 
     def tensor2np(self, tensor, is_rgb=False):
+        """
+        Convertit un tensor torch en numpy array.
+        Gère la permutation pour les images RVB si is_rgb est True.
+        """
         tensor = tensor.detach().cpu()
         if is_rgb:
+            # Permute de (N, C, H, W) vers (N, H, W, C)
             np_img = tensor.permute(0, 2, 3, 1).numpy()
         else:
+            # Squeeze le canal et la dimension de batch si N=1
             np_img = tensor.squeeze(1).numpy()
         if np_img.shape[0] == 1:
             np_img = np_img[0]
         return np_img
-    
+
+
+    #----------------------------------------------------------------------------------------------------------------------
+
+
     def train_model(self, _=None):
         image_np = self._get_image_data()
         print(f"[DEBUG] Raw numpy image shape: {None if image_np is None else image_np.shape}")
@@ -273,8 +282,7 @@ class Noise2VSTWidget(Container):
             self.update_status("No input image selected. Cannot load/save weights.")
             return
 
-        tensor, mode = self.np2tensor(image_np, image_layer=image_layer)
-        is_color = getattr(image_layer, "rgb", mode == "color")
+        tensor, mode, is_rgb = self.np2tensor(image_np, image_layer=image_layer)
         image = tensor
         print(f"[DEBUG] After np2tensor: {None if image is None else image.shape}")
         if image is None:
@@ -300,10 +308,15 @@ class Noise2VSTWidget(Container):
             print(f"[DEBUG] After padding: {image.shape}")
             self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
-        # Seulement aplatir si ce n’est pas une image couleur RGB
-        if not is_color:
+        # --- CORRECTION ---
+        # Conditionner l'aplatissement des canaux en fonction de 'is_rgb'
+        if is_rgb:
+            # Si c'est une image RVB, on ne fait rien, le modèle doit gérer les 3 canaux
+            print(f"[DEBUG] is_rgb=True. Training on N={N} image(s) with C={C} channels.")
+        else:
+            # Pour les stacks, on aplatit pour traiter chaque canal comme une image indépendante
             image = image.view(N * C, 1, H, W)
-            print(f"[DEBUG] Flattened image shape for independent training: {image.shape}")
+            print(f"[DEBUG] is_rgb=False. Flattened image shape for independent training: {image.shape}")
 
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
@@ -352,6 +365,9 @@ class Noise2VSTWidget(Container):
             self.update_status(f"Failed to save weights: {e}")
 
 
+    #----------------------------------------------------------------------------------------------------------------------
+
+
     def evaluate_model(self, _=None):
         image = self._get_image_data()
         if image is None:
@@ -362,19 +378,9 @@ class Noise2VSTWidget(Container):
             self.update_status("No input image selected.")
             return
 
-        image_tensor, mode = self.np2tensor(image, image_layer=image_layer)
+        image_tensor, mode, is_rgb = self.np2tensor(image, image_layer=image_layer)
         N, C, H, W = image_tensor.shape
-        is_color = getattr(image_layer, "rgb", mode == "color")
-
-        if is_color:
-            # On garde les 3 canaux ensemble
-            flat_tensor = image_tensor
-        else:
-            # On traite canal par canal
-            flat_tensor = image_tensor.view(N * C, 1, H, W)
-
-        denoised_flat = torch.empty_like(flat_tensor)
-
+        
         if download_weights is not None:
             try:
                 download_weights()
@@ -405,31 +411,33 @@ class Noise2VSTWidget(Container):
         try:
             self.run_denoise_progress.visible = True
             self.run_denoise_progress.value = 0
-
+            
             with torch.no_grad():
-                if is_color:
-                    total_steps = N
-                    for idx in range(total_steps):
-                        denoised_output = self.model(flat_tensor[idx:idx+1], gaussian_model)
-                        denoised_flat[idx] = denoised_output[0]
-                        self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
+                denoised_slices = None
+                if is_rgb:
+                    # --- CORRECTION ---
+                    # Si c'est une image RVB, on passe le tensor complet au modèle
+                    self.update_status("Denoising color image...")
+                    denoised_slices = self.model(image_tensor, gaussian_model)
+                    self.run_denoise_progress.value = 100
                 else:
+                    # Sinon (stacks de canaux indépendants), on boucle sur chaque canal
+                    self.update_status("Denoising stack of independent channels...")
+                    flat_tensor = image_tensor.view(N * C, 1, H, W)
+                    denoised_flat = torch.empty_like(flat_tensor)
+                    
                     total_steps = flat_tensor.shape[0]
                     for idx in range(total_steps):
-                        input_slice = flat_tensor[idx:idx+1]
+                        input_slice = flat_tensor[idx:idx+1, :, :, :]
                         denoised_output = self.model(input_slice, gaussian_model)
                         denoised_flat[idx] = denoised_output[0, 0, :, :]
                         self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
 
-            self.run_denoise_progress.value = 100
+                    # Reshape back to (N, C, H, W)
+                    denoised_slices = denoised_flat.view(N, C, H, W)
+
             self.run_denoise_progress.visible = False
-
-            if is_color:
-                denoised_slices = denoised_flat
-            else:
-                denoised_slices = denoised_flat.view(N, C, H, W)
-
-            output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
+            output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_rgb)
 
         except Exception as e:
             self.run_denoise_progress.visible = False
@@ -450,7 +458,7 @@ class Noise2VSTWidget(Container):
         else:
             self.viewer.add_image(output_np,
                                 name=denoised_name,
-                                rgb=is_color,
+                                rgb=is_rgb,
                                 colormap=colormap,
                                 contrast_limits=contrast_limits,
                                 gamma=gamma)
