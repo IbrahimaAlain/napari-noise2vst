@@ -219,45 +219,38 @@ class Noise2VSTWidget(Container):
 
         model.load_state_dict(torch.load(path, map_location=self.device), strict=True)
         return model
-    
 
     def np2tensor(self, image_np, image_layer=None):
         """
         Convertit un numpy array en tensor torch, adapté à FFDNet.
-        - Si image >3 canaux, moyenne en gris.
+        - Ne fusionne plus les canaux si >3.
         - Retourne (tensor, mode) où mode = "gray" ou "color".
         """
 
+        # Assure que l'image est float32
         image_np = image_np.astype(np.float32)
 
+        # Détecte le nombre de canaux et la dimension
         if image_np.ndim == 4:  # (N, C, H, W)
             n, c, h, w = image_np.shape
-            if c > 3:
-                image_np = image_np.mean(axis=1, keepdims=True)
+            if c == 1:
                 mode = "gray"
-            elif c == 3:
-                mode = "color"
             else:
-                mode = "gray"
+                mode = "color"  # même si >3 canaux, on garde tous
         elif image_np.ndim == 3:  # (C,H,W) ou (H,W,C)
-            if image_np.shape[2] <= 4:  # supposer dernière dim = canaux
-                c = image_np.shape[2]
-                image_np = np.moveaxis(image_np, 2, 0)  # (C,H,W)
-            else:
-                c = image_np.shape[0]
-            if c > 3:
-                image_np = image_np.mean(axis=0, keepdims=True)
+            c = image_np.shape[0]
+            if c == 1:
                 mode = "gray"
-            elif c == 3:
+            else:
                 mode = "color"
-            else:
-                mode = "gray"
+            image_np = image_np[np.newaxis, ...]  # ajoute batch dimension
         else:  # image 2D
-            image_np = image_np[np.newaxis, ...]
+            image_np = image_np[np.newaxis, np.newaxis, ...]  # (1,1,H,W)
             mode = "gray"
 
         tensor = torch.from_numpy(image_np)
         return tensor, mode
+
 
     def tensor2np(self, tensor, is_rgb=False):
         tensor = tensor.detach().cpu()
@@ -371,9 +364,9 @@ class Noise2VSTWidget(Container):
             return
 
         image_tensor, mode = self.np2tensor(image, image_layer=image_layer)
-        is_color = mode == "color"
-
         N, C, H, W = image_tensor.shape
+        is_color = (mode == "color")
+
         denoised_slices = torch.empty_like(image_tensor)
 
         if download_weights is not None:
