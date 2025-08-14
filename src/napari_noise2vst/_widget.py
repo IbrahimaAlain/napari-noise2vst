@@ -221,88 +221,55 @@ class Noise2VSTWidget(Container):
         return model
     
 
-    def np2tensor(image: np.ndarray):
+    def np2tensor(self, image_np, image_layer=None):
         """
-        Convertit un numpy array en tensor PyTorch compatible FFDNet.
-        
-        - Images 1 canal → FFDNet gris
-        - Images 3 canaux → FFDNet couleur
-        - Images multi-canaux (>3) → moyenne en gris par canal
+        Convertit un numpy array en tensor torch, adapté à FFDNet.
+        - Si image >3 canaux, moyenne en gris.
+        - Retourne (tensor, mode) où mode = "gray" ou "color".
         """
-        if image.ndim == 2:
-            # Image 2D -> ajouter batch et channel
-            tensor = torch.from_numpy(image).unsqueeze(0).unsqueeze(0).float()
+
+        image_np = image_np.astype(np.float32)
+
+        if image_np.ndim == 4:  # (N, C, H, W)
+            n, c, h, w = image_np.shape
+            if c > 3:
+                image_np = image_np.mean(axis=1, keepdims=True)
+                mode = "gray"
+            elif c == 3:
+                mode = "color"
+            else:
+                mode = "gray"
+        elif image_np.ndim == 3:  # (C,H,W) ou (H,W,C)
+            if image_np.shape[2] <= 4:  # supposer dernière dim = canaux
+                c = image_np.shape[2]
+                image_np = np.moveaxis(image_np, 2, 0)  # (C,H,W)
+            else:
+                c = image_np.shape[0]
+            if c > 3:
+                image_np = image_np.mean(axis=0, keepdims=True)
+                mode = "gray"
+            elif c == 3:
+                mode = "color"
+            else:
+                mode = "gray"
+        else:  # image 2D
+            image_np = image_np[np.newaxis, ...]
             mode = "gray"
 
-        elif image.ndim == 3:
-            # Shape possible: (C,H,W) ou (H,W,C)
-            if image.shape[0] in [1,3,4,5,17]:  # C,H,W
-                tensor = torch.from_numpy(image).float()
-            elif image.shape[2] in [1,3,4,5,17]:  # H,W,C
-                tensor = torch.from_numpy(image.transpose(2,0,1)).float()
-            else:
-                raise ValueError(f"Cannot interpret shape {image.shape} as channels-first")
-
-            c = tensor.shape[0]
-
-            if c == 1:
-                mode = "gray"
-            elif c == 3:
-                mode = "color"
-            else:
-                # >3 canaux → moyenne pour gris (FFDNet ne supporte pas multi-canaux)
-                tensor = tensor.mean(dim=0, keepdim=True)
-                mode = "gray"
-
-        elif image.ndim == 4:
-            # Shape possible: (N,C,H,W) ou (N,H,W,C)
-            if image.shape[1] in [1,3,4,5,17]:
-                tensor = torch.from_numpy(image).float()
-            elif image.shape[3] in [1,3,4,5,17]:
-                tensor = torch.from_numpy(image.transpose(0,3,1,2)).float()
-            else:
-                raise ValueError(f"Cannot interpret shape {image.shape} as channels-first")
-            
-            c = tensor.shape[1]
-            if c == 1:
-                mode = "gray"
-            elif c == 3:
-                mode = "color"
-            else:
-                tensor = tensor.mean(dim=1, keepdim=True)
-                mode = "gray"
-
-        else:
-            raise ValueError(f"Unsupported image ndim: {image.ndim}")
-
+        tensor = torch.from_numpy(image_np)
         return tensor, mode
 
-
     def tensor2np(self, tensor, is_rgb=False):
-        """
-        Convert a PyTorch tensor (N, C, H, W) to a NumPy array.
-        If is_rgb=True, output shape is (N, H, W, C) or (H, W, C) for single image.
-        If False, outputs (N, H, W) or (H, W) for single image.
-        """
         tensor = tensor.detach().cpu()
-
         if is_rgb:
             np_img = tensor.permute(0, 2, 3, 1).numpy()
         else:
             np_img = tensor.squeeze(1).numpy()
         if np_img.shape[0] == 1:
             np_img = np_img[0]
-
         return np_img
 
-
-    
     def train_model(self, _=None):
-        """
-        Train the Noise2VST model using the input image and selected number of iterations.
-        Updates progress bar and status messages.
-        """
-
         image_np = self._get_image_data()
         print(f"[DEBUG] Raw numpy image shape: {None if image_np is None else image_np.shape}")
         if image_np is None:
@@ -313,37 +280,32 @@ class Noise2VSTWidget(Container):
             self.update_status("No input image selected. Cannot load/save weights.")
             return
 
-        # Convert numpy image to tensor with correct shape and RGB detection
-        image = self.np2tensor(image_np, image_layer=image_layer)
+        tensor, mode = self.np2tensor(image_np, image_layer=image_layer)
+        image = tensor
         print(f"[DEBUG] After np2tensor: {None if image is None else image.shape}")
         if image is None:
             return
 
-        # Get patch size expected by model or default to 64
         patch_size = getattr(self.model, 'patch_size', 64)
         _, _, H, W = image.shape
         print(f"[DEBUG] Initial tensor size: N/A, H={H}, W={W}, Patch size={patch_size}")
 
-        # Resize image if too large to limit number of patches during training
         max_size = 512
         if H > max_size or W > max_size:
             image = F.interpolate(image, size=(min(H, max_size), min(W, max_size)),
-                                mode='bilinear', align_corners=False)
+                                  mode='bilinear', align_corners=False)
             print(f"[DEBUG] After resize: {image.shape}")
             self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
 
-        # Pad image if smaller than patch size to avoid negative range errors in patch extraction
         _, _, H, W = image.shape
         pad_h = max(0, patch_size - H)
         pad_w = max(0, patch_size - W)
         print(f"[DEBUG] Padding values: pad_h={pad_h}, pad_w={pad_w}")
-
         if pad_h > 0 or pad_w > 0:
             image = F.pad(image, (0, pad_w, 0, pad_h), mode='constant', value=0)
             print(f"[DEBUG] After padding: {image.shape}")
             self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
-        # Ensure pretrained weights are downloaded before training
         if download_weights is not None:
             try:
                 download_weights()
@@ -351,18 +313,17 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load gaussian model for training (FFDNet by default)
         try:
-            gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
+            gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value,
+                                                      image,
+                                                      color=(mode=="color"))
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
 
-        # Compose spline weights path based on selected image name
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
-        # Load spline weights if exist for this image
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -378,7 +339,6 @@ class Noise2VSTWidget(Container):
             print(f"[DEBUG] Training iterations: {nb_iter}")
             print(f"[DEBUG] Shape before fit(): {image.shape}")
 
-            # Train model with progress callback updating progress bar
             self.model.fit(
                 image,
                 gaussian_model,
@@ -395,13 +355,11 @@ class Noise2VSTWidget(Container):
             traceback.print_exc()
             return
 
-        # Save trained spline weights with image-specific filename
         try:
             torch.save(self.model.state_dict(), spline_path)
             self.update_status(f"Weights saved to {spline_path}")
         except Exception as e:
             self.update_status(f"Failed to save weights: {e}")
-
 
     def evaluate_model(self, _=None):
         image = self._get_image_data()
@@ -413,18 +371,12 @@ class Noise2VSTWidget(Container):
             self.update_status("No input image selected.")
             return
 
-        # Convert numpy to tensor with correct shape and RGB detection
-        image_tensor = self.np2tensor(image, image_layer=image_layer)
-        if image_tensor is None:
-            return
+        image_tensor, mode = self.np2tensor(image, image_layer=image_layer)
+        is_color = mode == "color"
 
         N, C, H, W = image_tensor.shape
-        is_color = bool(getattr(image_layer, "rgb", False))
-
-        # Prepare output tensor with the same shape as input
         denoised_slices = torch.empty_like(image_tensor)
 
-        # Download weights if needed
         if download_weights is not None:
             try:
                 download_weights()
@@ -432,9 +384,10 @@ class Noise2VSTWidget(Container):
                 self.update_status(f"Download failed: {e}")
                 return
 
-        # Load gaussian model for inference
         try:
-            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value, image_tensor)
+            gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value,
+                                                      image_tensor,
+                                                      color=is_color)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
@@ -442,7 +395,6 @@ class Noise2VSTWidget(Container):
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
-        # Load spline weights if they exist
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -462,11 +414,8 @@ class Noise2VSTWidget(Container):
                 step_count = 0
                 for n in range(N):
                     for c in range(C):
-                        # Extract slice with shape (1, 1, H, W)
                         input_slice = image_tensor[n:n+1, c:c+1, :, :]
-                        # Run model inference on this slice
                         denoised_output = self.model(input_slice, gaussian_model)
-                        # Assign denoised output to the corresponding place in output tensor
                         denoised_slices[n, c, :, :] = denoised_output[0, 0, :, :]
                         step_count += 1
                         self.run_denoise_progress.value = int(step_count / total_steps * 100)
@@ -474,7 +423,6 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
-            # Convert output tensor to numpy, preserving RGB flag
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
 
         except Exception as e:
@@ -495,11 +443,11 @@ class Noise2VSTWidget(Container):
             self.viewer.layers[denoised_name].data = output_np
         else:
             self.viewer.add_image(output_np,
-                                name=denoised_name,
-                                rgb=is_color,
-                                colormap=colormap,
-                                contrast_limits=contrast_limits,
-                                gamma=gamma)
+                                  name=denoised_name,
+                                  rgb=is_color,
+                                  colormap=colormap,
+                                  contrast_limits=contrast_limits,
+                                  gamma=gamma)
 
         self.update_status("Denoising complete.")
 
