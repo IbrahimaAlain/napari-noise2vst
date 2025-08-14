@@ -135,6 +135,7 @@ class Noise2VSTWidget(Container):
 
         # Add all widgets to this container
         self.extend([
+            self.step0_label,
             self.image_input,
             self.step1_container,
             self.step2_container,
@@ -220,60 +221,53 @@ class Noise2VSTWidget(Container):
         model.load_state_dict(torch.load(path, map_location=self.device), strict=True)
         return model
 
+
     def np2tensor(self, image_np, image_layer=None):
-        """
-        Convertit un numpy array en tensor torch, adapté à FFDNet.
-        - Ne fusionne plus les canaux si >3.
-        - Retourne (tensor, mode, is_rgb) où mode = "gray" ou "color" et is_rgb est un booléen.
-        """
         image_np = image_np.astype(np.float32)
 
-        if image_np.ndim == 4:  # (N, C, H, W)
+        if image_np.ndim == 4:
             n, c, h, w = image_np.shape
-        elif image_np.ndim == 3:  # (C,H,W) ou (H,W,C)
-            # Supposons (H,W,C) pour les images Napari standard
+        elif image_np.ndim == 3:
             if image_np.shape[2] in [3, 4]:
-                image_np = np.transpose(image_np, (2, 0, 1))  # (C, H, W)
+                image_np = np.transpose(image_np, (2, 0, 1))
             c = image_np.shape[0]
-            image_np = image_np[np.newaxis, ...]  # ajoute batch dimension (1, C, H, W)
-        else:  # image 2D (H,W)
-            image_np = image_np[np.newaxis, np.newaxis, ...]  # (1,1,H,W)
+            image_np = image_np[np.newaxis, ...]
+        else:
+            image_np = image_np[np.newaxis, np.newaxis, ...]
             c = 1
 
-        # Détection du mode et is_rgb
         mode = "gray" if c == 1 else "color"
-        is_rgb = getattr(image_layer, "rgb", False) if image_layer else (c == 3) # Utiliser l'info de Napari si possible
+        is_rgb = getattr(image_layer, "rgb", False) if image_layer else (c == 3)
 
         tensor = torch.from_numpy(image_np)
         return tensor, mode, is_rgb
 
-
-    #----------------------------------------------------------------------------------------------------------------------
-
-
     def tensor2np(self, tensor, is_rgb=False):
-        """
-        Convertit un tensor torch en numpy array.
-        Gère la permutation pour les images RVB si is_rgb est True.
-        """
         tensor = tensor.detach().cpu()
         if is_rgb:
-            # Permute de (N, C, H, W) vers (N, H, W, C)
             np_img = tensor.permute(0, 2, 3, 1).numpy()
         else:
-            # Squeeze le canal et la dimension de batch si N=1
             np_img = tensor.squeeze(1).numpy()
         if np_img.shape[0] == 1:
             np_img = np_img[0]
         return np_img
 
-
-    #----------------------------------------------------------------------------------------------------------------------
-
+    def _update_vst_plot(self, iteration, f_params, theta_params):
+        self.iterations.append(iteration)
+        self.f_history.append(f_params.mean())
+        self.theta_history.append(theta_params.mean())
+        
+        self.ax.clear()
+        self.ax.plot(self.iterations, self.f_history, label=r'$f_{\theta}$ mean', color='blue')
+        self.ax.plot(self.iterations, self.theta_history, label=r'$\theta$ mean', color='orange')
+        self.ax.set_title("VST Parameter Evolution")
+        self.ax.set_xlabel('Iterations')
+        self.ax.set_ylabel('Parameter Value')
+        self.ax.legend()
+        self.canvas.draw_idle()
 
     def train_model(self, _=None):
         image_np = self._get_image_data()
-        print(f"[DEBUG] Raw numpy image shape: {None if image_np is None else image_np.shape}")
         if image_np is None:
             return
 
@@ -284,39 +278,27 @@ class Noise2VSTWidget(Container):
 
         tensor, mode, is_rgb = self.np2tensor(image_np, image_layer=image_layer)
         image = tensor
-        print(f"[DEBUG] After np2tensor: {None if image is None else image.shape}")
         if image is None:
             return
 
         patch_size = getattr(self.model, 'patch_size', 64)
         N, C, H, W = image.shape
-        print(f"[DEBUG] Initial tensor size: N={N}, C={C}, H={H}, W={W}, Patch size={patch_size}")
 
         max_size = 512
         if H > max_size or W > max_size:
             image = F.interpolate(image, size=(min(H, max_size), min(W, max_size)),
                                 mode='bilinear', align_corners=False)
-            print(f"[DEBUG] After resize: {image.shape}")
             self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
             _, _, H, W = image.shape
 
         pad_h = max(0, patch_size - H)
         pad_w = max(0, patch_size - W)
-        print(f"[DEBUG] Padding values: pad_h={pad_h}, pad_w={pad_w}")
         if pad_h > 0 or pad_w > 0:
             image = F.pad(image, (0, pad_w, 0, pad_h), mode='constant', value=0)
-            print(f"[DEBUG] After padding: {image.shape}")
             self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
-        # --- CORRECTION ---
-        # Conditionner l'aplatissement des canaux en fonction de 'is_rgb'
-        if is_rgb:
-            # Si c'est une image RVB, on ne fait rien, le modèle doit gérer les 3 canaux
-            print(f"[DEBUG] is_rgb=True. Training on N={N} image(s) with C={C} channels.")
-        else:
-            # Pour les stacks, on aplatit pour traiter chaque canal comme une image indépendante
+        if not is_rgb:
             image = image.view(N * C, 1, H, W)
-            print(f"[DEBUG] is_rgb=False. Flattened image shape for independent training: {image.shape}")
 
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_train_selector.value, image)
@@ -339,14 +321,16 @@ class Noise2VSTWidget(Container):
             self.progress_bar.value = 0
             self.update_status("Training started...")
             nb_iter = self.iter_slider.value
-            print(f"[DEBUG] Training iterations: {nb_iter}")
-            print(f"[DEBUG] Shape before fit(): {image.shape}")
-
+            
+            self.f_history.clear()
+            self.theta_history.clear()
+            self.iterations.clear()
             self.model.fit(
                 image,
                 gaussian_model,
                 nb_iterations=nb_iter,
-                progress_callback=lambda v: setattr(self.progress_bar, "value", v)
+                progress_callback=lambda v: setattr(self.progress_bar, "value", v),
+                history_callback=self._update_vst_plot
             )
 
             self.progress_bar.visible = False
@@ -364,40 +348,30 @@ class Noise2VSTWidget(Container):
         except Exception as e:
             self.update_status(f"Failed to save weights: {e}")
 
-
-    #----------------------------------------------------------------------------------------------------------------------
-
-
     def evaluate_model(self, _=None):
         image = self._get_image_data()
         if image is None:
             return
-
         image_layer = self.image_input.value
         if image_layer is None:
             self.update_status("No input image selected.")
             return
-
         image_tensor, mode, is_rgb = self.np2tensor(image, image_layer=image_layer)
         N, C, H, W = image_tensor.shape
-        
         if download_weights is not None:
             try:
                 download_weights()
             except Exception as e:
                 self.update_status(f"Download failed: {e}")
                 return
-
         try:
             gaussian_model = self.load_gaussian_model(self.gaussian_eval_selector.value,
                                                     image_tensor)
         except Exception as e:
             self.update_status(f"Model loading failed: {e}")
             return
-
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
-
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -407,52 +381,39 @@ class Noise2VSTWidget(Container):
                 return
         else:
             self.update_status(f"No spline weights found for image '{image_name}', running inference with default model.")
-
         try:
             self.run_denoise_progress.visible = True
             self.run_denoise_progress.value = 0
-            
             with torch.no_grad():
                 denoised_slices = None
                 if is_rgb:
-                    # --- CORRECTION ---
-                    # Si c'est une image RVB, on passe le tensor complet au modèle
                     self.update_status("Denoising color image...")
                     denoised_slices = self.model(image_tensor, gaussian_model)
                     self.run_denoise_progress.value = 100
                 else:
-                    # Sinon (stacks de canaux indépendants), on boucle sur chaque canal
                     self.update_status("Denoising stack of independent channels...")
                     flat_tensor = image_tensor.view(N * C, 1, H, W)
                     denoised_flat = torch.empty_like(flat_tensor)
-                    
                     total_steps = flat_tensor.shape[0]
                     for idx in range(total_steps):
                         input_slice = flat_tensor[idx:idx+1, :, :, :]
                         denoised_output = self.model(input_slice, gaussian_model)
                         denoised_flat[idx] = denoised_output[0, 0, :, :]
                         self.run_denoise_progress.value = int((idx + 1) / total_steps * 100)
-
-                    # Reshape back to (N, C, H, W)
                     denoised_slices = denoised_flat.view(N, C, H, W)
-
             self.run_denoise_progress.visible = False
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_rgb)
-
         except Exception as e:
             self.run_denoise_progress.visible = False
             self.update_status(f"Inference failed: {e}")
             traceback.print_exc()
             return
-
         denoised_name = f"{image_name}_denoised"
         colormap = getattr(image_layer, "colormap", "gray")
         if hasattr(colormap, "name"):
             colormap = colormap.name
-
         contrast_limits = (float(denoised_slices.min()), float(denoised_slices.max()))
         gamma = getattr(image_layer, "gamma", 1.0) or 1.0
-
         if denoised_name in self.viewer.layers:
             self.viewer.layers[denoised_name].data = output_np
         else:
@@ -462,61 +423,41 @@ class Noise2VSTWidget(Container):
                                 colormap=colormap,
                                 contrast_limits=contrast_limits,
                                 gamma=gamma)
-
         self.update_status("Denoising complete.")
-
-
-
-
+    
     def plot_spline(self, _=None):
-        """
-        Plot the learned VST splines (forward and inverse) for the currently selected input image.
-        The figure is customized and saved as a PNG named after the image.
-        """
         try:
             image_layer = self.image_input.value
             if image_layer is None:
                 self.update_status("No image selected for spline plotting.")
                 return
-
             base_name = image_layer.name
             if base_name.endswith("_denoised"):
                 base_name = base_name.removesuffix("_denoised")
-
             safe_name = re.sub(r"[^\w.-]", "_", base_name)
             spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
             if not spline_path.exists():
                 self.update_status(f"Spline weights file does not exist for image '{image_layer.name}'.")
                 return
-
-            # Load spline weights for the selected image
             self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
-
             with torch.no_grad():
                 x = torch.linspace(0, 1, self.model.spline1.nb_knots, device=self.device)
                 y = self.model.spline1(x)
-
                 if getattr(self.model, "inverse", False):
                     z = self.model.spline1(y, inverse=True)
                 else:
                     z = self.model.spline2(x)
-
-                # Convert to CPU for plotting
                 x_cpu, y_cpu, z_cpu = x.cpu(), y.cpu(), z.cpu()
                 c = y_cpu.min()
-
-                # Prepare custom figure with personalized name
                 fig_title = f"VST Splines - {image_layer.name}"
                 fig = plt.figure(num=fig_title, figsize=(8, 4))
-                fig.clf()  # Clear figure if exists
-
+                fig.clf()
                 if getattr(self.model, "inverse", False):
                     plt.plot(x_cpu, y_cpu - c, color='blue', label=r"$f_\theta$")
                     plt.plot(y_cpu - c, z_cpu, color='orange', label=r"$f^{inv}_{\theta, \alpha, \beta}$")
                 else:
                     plt.plot(x_cpu, y_cpu - c, color='blue', label=r"$f_{\theta_1}$")
                     plt.plot(x_cpu - c, z_cpu, color='orange', label=r"$f_{\theta_2}$")
-
                 plt.plot(x_cpu, x_cpu, "--", color="black", label="identity")
                 plt.xlabel("Input")
                 plt.ylabel("Output")
@@ -524,79 +465,57 @@ class Noise2VSTWidget(Container):
                 plt.grid(True)
                 plt.legend()
                 plt.tight_layout()
-
-                # Save the plot in outputs folder
                 output_dir = Path("outputs")
                 output_dir.mkdir(exist_ok=True)
                 save_path = output_dir / f"spline_plot_{safe_name}.png"
                 plt.savefig(save_path, dpi=150)
                 plt.show()
-
         except Exception as e:
             self.update_status(f"Failed to plot spline: {e}")
             import traceback
             traceback.print_exc()
-
     
     def theta2y(self, theta):
         if not Spline().is_strictly_increasing:
             return theta
         theta0, theta1 = torch.split(theta, [1, Spline().nb_knots-1], dim=0)
         return torch.cumsum(torch.cat((theta0, theta1.exp() + Spline().eps), dim=0), dim=0)
-
-
-
+    
     def export_spline_knots(self, _=None):
-        """Export spline values (x, y - c, y - c, z) as CSV for the selected image.
-
-        If the model is in inverse mode, z corresponds to f⁻¹(y - c), otherwise z = f₂(x).
-        """
-
         image_layer = self.image_input.value
         if not image_layer:
             self._error("No image selected.")
             return
-        
         base_name = image_layer.name
         if base_name.endswith("_denoised"):
             base_name = base_name.removesuffix("_denoised")
         safe_name = re.sub(r"[^\w.-]", "_", base_name)
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{safe_name}.pth"
-
         if not spline_path.exists():
             self._error(f"No spline weights found for '{image_layer.name}'. Train the model first.")
             return
-
         try:
             weights = torch.load(spline_path, map_location=self.device)
             self.model.load_state_dict(weights)
-
             theta_in = weights.get("spline1.theta")
             theta_out = weights.get("spline2.theta")
-
             if theta_in is None:
                 self._error("spline1.theta not found in weights.")
                 return
-
             y_in = self.theta2y(theta_in)
             x = torch.linspace(0, 1, len(y_in), device=self.device)
             c = y_in.min()
             y_centered = y_in - c
-
             with torch.no_grad():
                 if self.model.inverse:
                     z = self.model.spline1(y_in, inverse=True)
                 else:
                     z = self.model.spline2(x)
-
             x = x.cpu().numpy()
             y_centered = y_centered.cpu().numpy()
             z = z.cpu().numpy()
-
             header = ["x", "y", "x_inv", "y_inv"]
             rows = zip(x, y_centered, y_centered, z)
-
-
             path, _ = QFileDialog.getSaveFileName(
                 caption="Export Spline Knots",
                 filter="CSV Files (*.csv)",
@@ -605,12 +524,11 @@ class Noise2VSTWidget(Container):
             if not path:
                 self._info("Export cancelled.")
                 return
-
             with open(path, 'w', newline='') as f:
                 csv.writer(f).writerows([header, *rows])
-
             self._info(f"Spline knots exported to: {path}")
-
         except Exception as e:
             self._error(f"Export failed: {e}")
             traceback.print_exc()
+
+
