@@ -284,6 +284,7 @@ class Noise2VSTWidget(Container):
         """
 
         image_np = self._get_image_data()
+        print(f"[DEBUG] Raw numpy image shape: {None if image_np is None else image_np.shape}")
         if image_np is None:
             return
 
@@ -294,27 +295,32 @@ class Noise2VSTWidget(Container):
 
         # Convert numpy image to tensor with correct shape and RGB detection
         image = self.np2tensor(image_np, image_layer=image_layer)
+        print(f"[DEBUG] After np2tensor: {None if image is None else image.shape}")
         if image is None:
             return
 
         # Get patch size expected by model or default to 64
         patch_size = getattr(self.model, 'patch_size', 64)
         _, _, H, W = image.shape
+        print(f"[DEBUG] Initial tensor size: N/A, H={H}, W={W}, Patch size={patch_size}")
 
         # Resize image if too large to limit number of patches during training
-        max_size = 512  # Max height/width allowed, adjust based on memory constraints
+        max_size = 512
         if H > max_size or W > max_size:
             image = F.interpolate(image, size=(min(H, max_size), min(W, max_size)),
                                 mode='bilinear', align_corners=False)
+            print(f"[DEBUG] After resize: {image.shape}")
             self.update_status(f"Image resized to {image.shape[2]}x{image.shape[3]} to limit patch count.")
 
         # Pad image if smaller than patch size to avoid negative range errors in patch extraction
-        _, _, H, W = image.shape  # update after resize
+        _, _, H, W = image.shape
         pad_h = max(0, patch_size - H)
         pad_w = max(0, patch_size - W)
+        print(f"[DEBUG] Padding values: pad_h={pad_h}, pad_w={pad_w}")
 
         if pad_h > 0 or pad_w > 0:
             image = F.pad(image, (0, pad_w, 0, pad_h), mode='constant', value=0)
+            print(f"[DEBUG] After padding: {image.shape}")
             self.update_status(f"Image padded: added ({pad_h}, {pad_w}) pixels to reach patch size.")
 
         # Ensure pretrained weights are downloaded before training
@@ -349,6 +355,8 @@ class Noise2VSTWidget(Container):
             self.progress_bar.value = 0
             self.update_status("Training started...")
             nb_iter = self.iter_slider.value
+            print(f"[DEBUG] Training iterations: {nb_iter}")
+            print(f"[DEBUG] Shape before fit(): {image.shape}")
 
             # Train model with progress callback updating progress bar
             self.model.fit(
@@ -377,6 +385,7 @@ class Noise2VSTWidget(Container):
 
     def evaluate_model(self, _=None):
         image = self._get_image_data()
+        print(f"[DEBUG] Eval - raw numpy shape: {None if image is None else image.shape}")
         if image is None:
             return
 
@@ -387,13 +396,14 @@ class Noise2VSTWidget(Container):
 
         # Convert numpy to tensor with correct shape and RGB detection
         image_tensor = self.np2tensor(image, image_layer=image_layer)
+        print(f"[DEBUG] Eval - after np2tensor: {None if image_tensor is None else image_tensor.shape}")
         if image_tensor is None:
             return
 
         N, C, H, W = image_tensor.shape
+        print(f"[DEBUG] Eval - N={N}, C={C}, H={H}, W={W}")
         is_color = bool(getattr(image_layer, "rgb", False))
 
-        # Prepare output tensor with the same shape as input
         denoised_slices = torch.empty_like(image_tensor)
 
         # Download weights if needed
@@ -414,7 +424,6 @@ class Noise2VSTWidget(Container):
         image_name = image_layer.name
         spline_path = WEIGHTS_DIR / f"noise2vst_spline_{image_name}.pth"
 
-        # Load spline weights if they exist
         if spline_path.exists():
             try:
                 self.model.load_state_dict(torch.load(spline_path, map_location=self.device))
@@ -431,14 +440,14 @@ class Noise2VSTWidget(Container):
 
             with torch.no_grad():
                 total_steps = N * C
+                print(f"[DEBUG] Eval - total steps: {total_steps}")
                 step_count = 0
                 for n in range(N):
                     for c in range(C):
-                        # Extract slice with shape (1, 1, H, W)
+                        print(f"[DEBUG] Processing slice n={n}, c={c}, shape={image_tensor[n:n+1, c:c+1, :, :].shape}")
                         input_slice = image_tensor[n:n+1, c:c+1, :, :]
-                        # Run model inference on this slice
                         denoised_output = self.model(input_slice, gaussian_model)
-                        # Assign denoised output to the corresponding place in output tensor
+                        print(f"[DEBUG] Output slice shape: {denoised_output.shape}")
                         denoised_slices[n, c, :, :] = denoised_output[0, 0, :, :]
                         step_count += 1
                         self.run_denoise_progress.value = int(step_count / total_steps * 100)
@@ -446,34 +455,14 @@ class Noise2VSTWidget(Container):
             self.run_denoise_progress.value = 100
             self.run_denoise_progress.visible = False
 
-            # Convert output tensor to numpy, preserving RGB flag
             output_np = self.tensor2np(denoised_slices.cpu(), is_rgb=is_color)
+            print(f"[DEBUG] Final denoised output numpy shape: {output_np.shape}")
 
         except Exception as e:
             self.run_denoise_progress.visible = False
             self.update_status(f"Inference failed: {e}")
             traceback.print_exc()
             return
-
-        denoised_name = f"{image_name}_denoised"
-        colormap = getattr(image_layer, "colormap", "gray")
-        if hasattr(colormap, "name"):
-            colormap = colormap.name
-
-        contrast_limits = (float(denoised_slices.min()), float(denoised_slices.max()))
-        gamma = getattr(image_layer, "gamma", 1.0) or 1.0
-
-        if denoised_name in self.viewer.layers:
-            self.viewer.layers[denoised_name].data = output_np
-        else:
-            self.viewer.add_image(output_np,
-                                name=denoised_name,
-                                rgb=is_color,
-                                colormap=colormap,
-                                contrast_limits=contrast_limits,
-                                gamma=gamma)
-
-        self.update_status("Denoising complete.")
 
 
 
