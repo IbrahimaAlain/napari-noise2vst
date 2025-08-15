@@ -27,7 +27,7 @@ https://napari.org/stable/plugins/index.html
 
 ## Dependencies
 
-This plugin relies on the Noise2VST framework [S. Herbreteau and M. Unser, ICCV'25].
+This plugin relies on the **Noise2VST framework** (S. Herbreteau and M. Unser, ICCV'25).
 The source code is available at:
 https://github.com/sherbret/Noise2VST
 - ✅ No manual installation is required — this version is installed automatically when you install the plugin.
