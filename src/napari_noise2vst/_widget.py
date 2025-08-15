@@ -77,7 +77,7 @@ class Noise2VSTWidget(Container):
         self.step1_label = Label(value="STEP 1: TRAIN")
         self.iter_slider = Slider(
             label="Number of training iterations:",
-            value=1000,
+            value=1500,
             min=100,
             max=5000,
             step=100,
