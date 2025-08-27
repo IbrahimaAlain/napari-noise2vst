@@ -42,28 +42,19 @@ conda activate napari-env
 conda install pip
 ```
 
-You can install `napari-noise2vst` via [pip]:
-
-```
-pip install napari-noise2vst
-```
-
-If napari is not already installed, you can install `napari-noise2vst` with napari and Qt via:
-
-```
-pip install "napari-noise2vst[all]"
-```
-
-If you prefer installing napari separately:
-
+To install napari:
 ```
 pip install "napari[all]"
 ```
 
-To install latest development version:
-
+To install latest development version of Noise2VST:
 ```
 pip install git+https://github.com/IbrahimaAlain/napari-noise2vst.git
+```
+
+Then, launch napari with:
+```
+napari
 ```
 
 ## Usage
