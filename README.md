@@ -123,11 +123,13 @@ Noise2VST can process multiple noisy images simultaneously via a single VST; how
 ## Citation
 
 ```BibTex
-@article{herbreteau2024noise2vst,
-  title={Self-Calibrated Variance-Stabilizing Transformations for Real-World Image Denoising},
-  author={Herbreteau, S{\'e}bastien and Unser, Michael},
-  journal={arXiv preprint arXiv:2407.17399},
-  year={2024}
+@InProceedings{Herbreteau_2025_ICCV,
+    author    = {Herbreteau, S\'ebastien and Unser, Michael},
+    title     = {Self-Calibrated Variance-Stabilizing Transformations for Real-World Image Denoising},
+    booktitle = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
+    month     = {October},
+    year      = {2025},
+    pages     = {10496-10506}
 }
 ```
 
